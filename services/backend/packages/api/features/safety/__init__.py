@@ -1,0 +1,1 @@
+"""Safety feature (blocking + reporting)."""
