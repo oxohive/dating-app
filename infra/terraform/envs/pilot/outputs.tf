@@ -42,3 +42,17 @@ output "env_start_lambda_arn" {
 output "env_stop_lambda_arn" {
   value = aws_lambda_function.env_stop.arn
 }
+
+output "idle_auto_stop_alarm_name" {
+  value = aws_cloudwatch_metric_alarm.idle_auto_stop.alarm_name
+}
+
+output "env_wake_function_url" {
+  description = "Base URL for the env-wake Lambda Function URL. Append ?secret=<value> (see the SSM parameter in env_wake_secret_parameter_name) to use it."
+  value       = aws_lambda_function_url.env_wake.function_url
+}
+
+output "env_wake_secret_parameter_name" {
+  description = "SSM parameter (SecureString) holding the current env-wake shared secret."
+  value       = aws_ssm_parameter.env_wake_secret.name
+}

@@ -41,4 +41,11 @@ stop_schedule_cron  = "cron(30 18 * * ? *)"
 start_schedule_cron = "cron(30 2 * * ? *)"
 schedule_enabled    = true
 
+# Idle auto-stop: fires after idle_alarm_evaluation_periods consecutive
+# idle_alarm_period_seconds periods below the CPU threshold. Defaults below
+# are 4 x 300s = 20 minutes.
+idle_alarm_cpu_threshold_percent = 5
+idle_alarm_evaluation_periods    = 4
+idle_alarm_period_seconds        = 300
+
 cognito_enabled = false

@@ -301,3 +301,186 @@ resource "aws_iam_role_policy" "app_instance_ecr_read" {
   role   = module.ec2_app.iam_role_name
   policy = data.aws_iam_policy_document.app_instance_ecr_read.json
 }
+
+# --- Task 0005 additions: idle auto-stop alarm + wake-on-demand Lambda ---
+#
+# Additive only. This adds a finer-grained, activity-based cost saver on
+# top of (not instead of) the fixed env-scheduler cron above: the schedule
+# is the outer bound (always off overnight), this stops the instance after
+# ~20 minutes of low CPU during on-hours, and the env-wake Function URL
+# lets anyone bring it back up on demand instead of waiting for the next
+# scheduled start.
+
+# 1. Idle CloudWatch alarm -> invokes the EXISTING env-stop Lambda directly
+#    as its alarm action (no SNS topic needed; CloudWatch alarms can invoke
+#    a Lambda ARN directly). env-stop's handler is reused completely
+#    unmodified — it's already idempotent/safe to call this way.
+resource "aws_cloudwatch_metric_alarm" "idle_auto_stop" {
+  alarm_name          = "dating-app-pilot-idle-auto-stop"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = var.idle_alarm_evaluation_periods
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = var.idle_alarm_period_seconds
+  statistic           = "Average"
+  threshold           = var.idle_alarm_cpu_threshold_percent
+  alarm_description   = "Pilot EC2 instance CPUUtilization has stayed below the idle threshold for ~${var.idle_alarm_evaluation_periods * var.idle_alarm_period_seconds / 60} minutes; stops it via env-stop (cost control during on-hours, on top of the fixed env-scheduler cron)."
+  dimensions = {
+    InstanceId = module.ec2_app.instance_id
+  }
+  # Missing data (e.g. instance already stopped, so no CPUUtilization
+  # datapoints) must NOT be treated as breaching — env-stop is a safe
+  # no-op on an already-stopped instance, but there's no reason to force
+  # extra invocations, and "missing" here is the expected steady state
+  # whenever the instance is off.
+  treat_missing_data = "notBreaching"
+  alarm_actions      = [aws_lambda_function.env_stop.arn]
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_alarm_invoke_env_stop" {
+  statement_id   = "AllowCloudWatchAlarmInvokeEnvStop"
+  action         = "lambda:InvokeFunction"
+  function_name  = aws_lambda_function.env_stop.function_name
+  principal      = "lambda.alarms.cloudwatch.amazonaws.com"
+  source_account = data.aws_caller_identity.current.account_id
+  source_arn     = aws_cloudwatch_metric_alarm.idle_auto_stop.arn
+}
+
+data "aws_caller_identity" "current" {}
+
+# 2. Wake-on-demand: a new small Lambda behind a Function URL (cheapest
+#    option — no API Gateway needed), protected by a shared secret stored
+#    as an SSM SecureString (see docs/runbooks/env-start-stop.md for how
+#    it's obtained/rotated).
+
+resource "random_password" "env_wake_secret" {
+  length  = 32
+  special = false
+
+  # Changing this forces a new random value without touching anything
+  # else — the documented rotation path (see the runbook) is
+  # `terraform apply -replace=random_password.env_wake_secret`, which
+  # achieves the same thing without needing a keepers bump.
+}
+
+resource "aws_ssm_parameter" "env_wake_secret" {
+  name        = "/dating-app/pilot/env_wake_shared_secret"
+  description = "Shared secret query-param value required to invoke the env-wake Lambda Function URL (?secret=<value>)."
+  type        = "SecureString"
+  value       = random_password.env_wake_secret.result
+
+  tags = {
+    Purpose = "env-wake-shared-secret"
+  }
+}
+
+data "archive_file" "env_wake" {
+  type        = "zip"
+  source_dir  = "${path.module}/../../../../lambda/env-wake"
+  output_path = "${path.module}/.build/env-wake.zip"
+  excludes    = ["requirements.txt", "__pycache__"]
+}
+
+resource "aws_iam_role" "env_wake_lambda" {
+  name_prefix        = "dating-app-pilot-env-wake-"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
+}
+
+data "aws_iam_policy_document" "env_wake_lambda" {
+  statement {
+    sid       = "Ec2StartOnPilotInstance"
+    actions   = ["ec2:StartInstances"]
+    resources = [module.ec2_app.instance_arn]
+  }
+
+  statement {
+    sid       = "Ec2DescribeNoResourceLevelSupport"
+    actions   = ["ec2:DescribeInstances"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "ReadWakeSharedSecret"
+    actions   = ["ssm:GetParameter"]
+    resources = [aws_ssm_parameter.env_wake_secret.arn]
+  }
+
+  statement {
+    sid = "LambdaLogs"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+    ]
+    resources = ["arn:aws:logs:*:*:*"]
+  }
+}
+
+resource "aws_iam_role_policy" "env_wake_lambda" {
+  name   = "dating-app-pilot-env-wake-policy"
+  role   = aws_iam_role.env_wake_lambda.id
+  policy = data.aws_iam_policy_document.env_wake_lambda.json
+}
+
+resource "aws_lambda_function" "env_wake" {
+  function_name    = "dating-app-pilot-env-wake"
+  role             = aws_iam_role.env_wake_lambda.arn
+  handler          = "handler.handler"
+  runtime          = "python3.12"
+  timeout          = 15
+  filename         = data.archive_file.env_wake.output_path
+  source_code_hash = data.archive_file.env_wake.output_base64sha256
+
+  environment {
+    variables = {
+      INSTANCE_ID           = module.ec2_app.instance_id
+      SECRET_PARAMETER_NAME = aws_ssm_parameter.env_wake_secret.name
+    }
+  }
+}
+
+resource "aws_lambda_function_url" "env_wake" {
+  function_name      = aws_lambda_function.env_wake.function_name
+  authorization_type = "NONE"
+}
+
+# A Function URL with authorization_type = "NONE" still requires explicit
+# resource-based permissions before the Function URL service will invoke
+# the function (otherwise every request 403s before the handler ever
+# runs) — confirmed live against this account: AWS now requires BOTH a
+# lambda:InvokeFunctionUrl grant AND a lambda:InvokeFunction grant (the
+# latter became mandatory for new function URLs some time after this
+# pattern was first documented; previously InvokeFunctionUrl alone
+# sufficed). App-level access control is the shared-secret check inside
+# the handler, not IAM, since this must be reachable by anyone with the
+# URL + secret, with no AWS credentials.
+#
+# AWS's own guidance is to scope the second (InvokeFunction) statement to
+# "only when invoked via a function URL" using the InvokedViaFunctionUrl
+# condition key — but the installed aws provider (hashicorp/aws ~> 5.0;
+# confirmed via `terraform providers schema -json`) does not expose that
+# condition on aws_lambda_permission (only function_url_auth_type is
+# supported there, and AWS's AddPermission API rejects that specific
+# condition key on the InvokeFunction action with
+# InvalidParameterValueException - confirmed live against this account).
+# So this second grant is necessarily unconditioned. Accepted risk, not
+# an oversight: the real security boundary is the app-level shared-secret
+# check inside lambda/env-wake/handler.py, which runs for every
+# invocation regardless of path (direct Invoke API or Function URL) - a
+# caller without the correct secret gets the same 403 either way, so
+# this grant only widens *how* someone without AWS credentials could
+# reach the function, not what they could do without the secret.
+resource "aws_lambda_permission" "allow_public_invoke_env_wake_url" {
+  statement_id           = "AllowPublicInvokeEnvWakeFunctionUrl"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = aws_lambda_function.env_wake.function_name
+  principal              = "*"
+  function_url_auth_type = "NONE"
+}
+
+resource "aws_lambda_permission" "allow_public_invoke_function_env_wake" {
+  statement_id  = "AllowPublicInvokeFunctionEnvWake"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.env_wake.function_name
+  principal     = "*"
+}

@@ -1,0 +1,4 @@
+# boto3 is preinstalled in the Lambda Python runtime; pinned here only for
+# local dev/test clarity (pip install -r requirements.txt when working on
+# this handler outside Lambda).
+boto3==1.34.162

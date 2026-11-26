@@ -149,6 +149,36 @@ variable "schedule_enabled" {
   default     = true
 }
 
+# --- Idle auto-stop / wake-on-demand (task 0005) ---
+
+variable "idle_alarm_cpu_threshold_percent" {
+  description = <<-EOT
+    CPUUtilization percentage below which the instance is considered idle.
+    Kept low (default 5%) so normal light usage doesn't false-positive as
+    idle — this is a coarse heuristic for a single-instance pilot with no
+    load balancer / request-count metric available.
+  EOT
+  type        = number
+  default     = 5
+}
+
+variable "idle_alarm_evaluation_periods" {
+  description = <<-EOT
+    Number of consecutive periods CPUUtilization must stay below the idle
+    threshold before the alarm fires and stops the instance. Combined with
+    idle_alarm_period_seconds, the default (4 x 300s = 20 minutes) sits in
+    the middle of the "15 to 30 minutes" idle window asked for.
+  EOT
+  type        = number
+  default     = 4
+}
+
+variable "idle_alarm_period_seconds" {
+  description = "Period, in seconds, for the idle alarm's CPUUtilization evaluation."
+  type        = number
+  default     = 300
+}
+
 # --- Cognito (stub, disabled until auth feature lands) ---
 
 variable "cognito_enabled" {
