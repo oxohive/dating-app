@@ -1,0 +1,81 @@
+# Pilot Docker Compose stack — postgres/postgis, redis, backend, celery
+# worker, nginx.
+#
+# Rendered/deployed by .github/workflows/deploy.yml's deploy job: this file,
+# nginx.conf, and a runtime-only .env.pilot (never committed) are synced from
+# S3 onto the pilot EC2 instance at /opt/dating-app, then run with
+# `docker compose -f docker-compose.pilot.yml --env-file .env.pilot up -d`.
+#
+# BACKEND_IMAGE is intentionally not hardcoded here — it's set per-deploy in
+# .env.pilot to the immutable sha-tagged ECR image built earlier in the same
+# CI run (never `latest`), so every deploy is reproducible and rollback-able
+# by re-running the workflow against an older commit/tag.
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  backend:
+    image: ${BACKEND_IMAGE}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      CELERY_BROKER_URL: ${REDIS_URL}
+      CELERY_RESULT_BACKEND: ${REDIS_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    # Not publicly exposed — no `ports:` mapping. Only reachable from other
+    # compose services (nginx) via the default compose network, at
+    # backend:8000.
+
+  celery-worker:
+    image: ${BACKEND_IMAGE}
+    restart: unless-stopped
+    command: ["celery", "-A", "workers.celery_app.celery_app", "worker", "--loglevel=info"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      CELERY_BROKER_URL: ${REDIS_URL}
+      CELERY_RESULT_BACKEND: ${REDIS_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:

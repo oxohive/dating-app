@@ -218,3 +218,52 @@ module "env_scheduler" {
   start_schedule_cron = var.start_schedule_cron
   schedule_enabled    = var.schedule_enabled
 }
+
+# --- Task 0003 additions: live-deploy wiring ---
+#
+# Additive only — no edits to existing resources or any module. Grants the
+# two extra permissions the real deploy pipeline needs that weren't scoped
+# in task 0002: the GitHub Actions deploy role reading the pilot DB password
+# out of SSM, and the EC2 instance role reading the deploy assets
+# (docker-compose.pilot.yml / nginx.conf / .env.pilot) that the deploy job
+# stages in the artifacts bucket under deploy/.
+
+data "aws_iam_policy_document" "gha_deploy_ssm_db_password" {
+  statement {
+    sid       = "ReadPilotDbPasswordParameter"
+    actions   = ["ssm:GetParameter"]
+    resources = ["arn:aws:ssm:ap-south-1:767398004313:parameter/dating-app/pilot/db_password"]
+  }
+}
+
+resource "aws_iam_role_policy" "gha_deploy_ssm_db_password" {
+  name   = "${module.iam.deploy_role_name}-ssm-db-password"
+  role   = module.iam.deploy_role_name
+  policy = data.aws_iam_policy_document.gha_deploy_ssm_db_password.json
+}
+
+data "aws_iam_policy_document" "app_instance_artifact_bucket_read" {
+  statement {
+    sid       = "ListDeployPrefixInArtifactBucket"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.artifacts.arn]
+
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["deploy/*"]
+    }
+  }
+
+  statement {
+    sid       = "GetDeployAssetsFromArtifactBucket"
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.artifacts.arn}/deploy/*"]
+  }
+}
+
+resource "aws_iam_role_policy" "app_instance_artifact_bucket_read" {
+  name   = "${module.ec2_app.iam_role_name}-artifact-bucket-read"
+  role   = module.ec2_app.iam_role_name
+  policy = data.aws_iam_policy_document.app_instance_artifact_bucket_read.json
+}

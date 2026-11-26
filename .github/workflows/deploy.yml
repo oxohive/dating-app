@@ -42,6 +42,11 @@ jobs:
       # infra existing — this job is gated by check-ready above, so it never
       # runs until those vars are actually set.
       ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+      # Confirmed live via `terraform output artifact_bucket_id` in
+      # infra/terraform/envs/pilot (task 0003). Deploy assets (compose file,
+      # nginx conf, rendered .env.pilot) are staged under deploy/ here, then
+      # synced onto the instance by the final deploy step below.
+      ARTIFACT_BUCKET: oxohive-dating-app-pilot-artifacts-767398004313
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -92,14 +97,57 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and push backend image
+        id: build-push
         working-directory: services/backend
         env:
           REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" -t "$REGISTRY/$ECR_REPOSITORY:latest" .
+          docker build -f deploy/Dockerfile -t "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" -t "$REGISTRY/$ECR_REPOSITORY:latest" .
           docker push "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           docker push "$REGISTRY/$ECR_REPOSITORY:latest"
+          echo "registry=$REGISTRY" >> "$GITHUB_OUTPUT"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch pilot DB password from SSM
+        id: db-password
+        run: |
+          VALUE=$(aws ssm get-parameter \
+            --name /dating-app/pilot/db_password \
+            --with-decryption \
+            --query Parameter.Value \
+            --output text \
+            --region "$AWS_REGION")
+          echo "::add-mask::$VALUE"
+          echo "value=$VALUE" >> "$GITHUB_OUTPUT"
+
+      - name: Render .env.pilot
+        env:
+          POSTGRES_DB: dating_app
+          POSTGRES_USER: dating_app
+          POSTGRES_PASSWORD: ${{ steps.db-password.outputs.value }}
+          # Same REGISTRY/IMAGE_TAG this job already built and pushed above —
+          # read back from that step's outputs rather than redefined here.
+          REGISTRY: ${{ steps.build-push.outputs.registry }}
+          IMAGE_TAG: ${{ steps.build-push.outputs.image_tag }}
+        run: |
+          cat > "$RUNNER_TEMP/.env.pilot" <<EOF
+          POSTGRES_DB=${POSTGRES_DB}
+          POSTGRES_USER=${POSTGRES_USER}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+          REDIS_URL=redis://redis:6379/0
+          BACKEND_IMAGE=${REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+          EOF
+
+      - name: Upload deploy assets to S3
+        run: |
+          aws s3 cp infra/docker-compose/docker-compose.pilot.yml \
+            "s3://$ARTIFACT_BUCKET/deploy/docker-compose.pilot.yml"
+          aws s3 cp infra/docker-compose/nginx.conf \
+            "s3://$ARTIFACT_BUCKET/deploy/nginx.conf"
+          aws s3 cp "$RUNNER_TEMP/.env.pilot" \
+            "s3://$ARTIFACT_BUCKET/deploy/.env.pilot"
 
       - name: Pull and restart Docker Compose stack on instance
         run: |
@@ -108,9 +156,11 @@ jobs:
             --document-name "AWS-RunShellScript" \
             --comment "dating-app deploy ${{ github.sha }}" \
             --parameters 'commands=[
+              "mkdir -p /opt/dating-app",
+              "aws s3 sync s3://'"$ARTIFACT_BUCKET"'/deploy/ /opt/dating-app/",
               "cd /opt/dating-app",
-              "docker compose pull",
-              "docker compose up -d",
+              "docker compose -f docker-compose.pilot.yml --env-file .env.pilot pull",
+              "docker compose -f docker-compose.pilot.yml --env-file .env.pilot up -d",
               "docker image prune -f"
             ]' \
             --query "Command.CommandId" \
