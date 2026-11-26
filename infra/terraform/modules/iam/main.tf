@@ -38,11 +38,28 @@ data "aws_iam_policy_document" "gha_assume" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Only this exact repo, any branch/tag/environment within it.
+    # Only this exact repo. Matched on the stable "repository" claim rather
+    # than pattern-matching "sub" — GitHub embeds numeric org/repo IDs in
+    # "sub" (e.g. repo:org@12345/repo@67890:ref:refs/heads/main), so a
+    # literal "repo:org/repo:*" StringLike pattern never matches.
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:repository"
+      values   = ["${var.github_org}/${var.github_repo}"]
+    }
+
+    # AWS's IAM API hard-requires every GitHub-OIDC trust policy to also
+    # carry a "sub" (or "job_workflow_ref") condition that isn't scoped to
+    # "all" — the "repository" condition above alone is rejected at apply
+    # time with MalformedPolicyDocument. This repo's Deploy workflow
+    # (.github/workflows/deploy.yml) only ever runs via `push` to `main` or
+    # manual `workflow_dispatch` against `main`, so the real "sub" claim is
+    # a single stable, known value (org/repo numeric IDs don't change) —
+    # matched here with an exact StringEquals, not a wildcard pattern.
+    condition {
+      test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_org}/${var.github_repo}:*"]
+      values   = ["repo:${var.github_org}@328794427/${var.github_repo}@1473604500:ref:refs/heads/main"]
     }
   }
 }
