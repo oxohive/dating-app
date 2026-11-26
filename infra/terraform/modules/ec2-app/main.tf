@@ -168,6 +168,20 @@ resource "aws_instance" "app" {
     # Re-running user_data on every apply would be disruptive to a running
     # pilot host; application deploys go through the CI pipeline / SSM
     # instead of a fresh user_data run.
-    ignore_changes = [ami]
+    #
+    # user_data is ignored too: although the AWS provider does not force a
+    # destroy/recreate on a user_data change (user_data_replace_on_change
+    # defaults to false), applying such a change to THIS already-running
+    # instance requires AWS to stop and restart it (ModifyInstanceAttribute
+    # on UserData only succeeds while stopped) — `terraform plan` confirms
+    # this indirectly by showing public_ip/public_dns as "known after apply"
+    # on an otherwise in-place update. That stop/start would disrupt the
+    # live, billed pilot host for zero actual benefit, since cloud-init only
+    # runs user_data once per instance ID and this instance already
+    # completed its first boot — the updated template only takes effect for
+    # a genuinely new/replacement instance. The live instance's AWS CLI gap
+    # was instead closed directly via an SSM hot-patch (see
+    # tasks/0007-fix-instance-bootstrap-and-deploy-verification/status.md).
+    ignore_changes = [ami, user_data]
   }
 }
