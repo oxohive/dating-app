@@ -1,12 +1,11 @@
 # Status: 0002-aws-pilot-infra
 
-**State:** verifying
+**State:** done
 
-One item needs a human decision before this can move to `done` (see
-"Outstanding — needs explicit confirmation" below): the AWS Budgets cost cap
-had to be set in USD instead of the approved INR figure, because this AWS
-account's Budgets API rejects INR outright. Everything else is complete and
-verified.
+The USD 55/month budget figure (rounded-down approximation of the approved
+₹5,000/month, chosen so alerts fire a bit early rather than late) was
+presented to the user and explicitly confirmed as-is. Everything else was
+already independently verified.
 
 ## Definition-of-done checklist
 
@@ -56,33 +55,22 @@ verified.
       documented — see `plan.md`'s Rollback section. Not exercised (correctly
       — destroy was never run).
 
-## Outstanding — needs explicit human confirmation
+## Resolved
 
-- **Budget currency/amount substitution.** The user-approved cap was
-  **INR 5,000/month**. This AWS account's Budgets API only accepts **USD**
-  (confirmed live: `InvalidParameterException: ... INR is not in the
-  supported unit set: [USD]`). The live budget
-  (`dating-app-pilot-monthly-cap`) is currently **USD 55/month**, a
-  deliberately-rounded-down approximation (~INR 87/USD) chosen so the
-  50/80/100% alert thresholds fire a bit earlier than the true INR cap would,
-  not later. **This number was not explicitly approved — please confirm or
-  adjust it** (edit `budget_limit_amount` in
-  `infra/terraform/envs/pilot/terraform.tfvars`, then
-  `terraform apply -target=module.cloudwatch.aws_budgets_budget.monthly_cap`,
-  or the full plan/apply).
+- **Budget currency/amount** — USD 55/month explicitly confirmed by the user.
+  No further change needed.
+
+## Outstanding — not blocking, tracked separately
+
 - **SNS email subscription is `PendingConfirmation`.** AWS requires the
   subscriber to click a confirmation link. `hiveoxo@gmail.com` needs to
   check that inbox (including spam) for an AWS Notification confirmation
   email and confirm it, or budget/CloudWatch alarm alerts will not actually
-  be delivered.
-- **Root `.gitignore` gap.** `variables.tf`, `terraform.tfvars.example`, and
-  `infra/README.md` (pre-existing text) all claim the repo-root
-  `.gitignore` excludes `*.tfvars`. It does not — verified by reading it
-  directly. A scoped `infra/terraform/envs/pilot/.gitignore` was added as a
-  safeguard (confirmed working: `git status` does not list
-  `terraform.tfvars` as untracked), but the root `.gitignore` itself is out
-  of this task's ownership (`ownership.md` lists "root files" as
-  do-not-touch) and should be fixed separately.
+  be delivered. This is an action only the user can take; not something a
+  task can complete on their behalf.
+- **Root `.gitignore` gap** (real `*.tfvars` not excluded repo-wide) —
+  dispatched as a small separate fix outside this task's ownership
+  boundary (root files were explicitly do-not-touch for this task).
 
 ## Resource identifiers (also available via `terraform output -json`)
 
