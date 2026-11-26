@@ -102,3 +102,16 @@ achieved — a third, different, pre-existing bug blocks it. Needs a new
 follow-up task (recommend `0007-install-aws-cli-on-pilot-instance` or
 similar) to fix the instance bootstrap and, ideally, the silent-failure
 gap in `deploy.yml`'s SSM step.
+
+**Update (task 0007):** the AWS-CLI-missing bug and deploy.yml's
+silent-failure masking have both been fixed and verified — `aws s3 sync`
+now succeeds on the instance, deploy assets are correctly staged under
+`/opt/dating-app`, and the deploy job now correctly fails loudly instead
+of reporting false "Success" when something really breaks. This task's own
+SSM-document-ARN fix remains confirmed working throughout. The chain is
+now blocked on a **fourth** bug: the EC2 instance's Docker daemon isn't
+authenticated to ECR, so pulling the private backend image fails (`no
+basic auth credentials`) — see
+`tasks/0007-fix-instance-bootstrap-and-deploy-verification/status.md`.
+Still leaving this task as `blocked`, not `done`; the pilot isn't live
+yet.

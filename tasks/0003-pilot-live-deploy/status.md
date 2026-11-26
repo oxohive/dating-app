@@ -1,6 +1,8 @@
 # Status: 0003-pilot-live-deploy
 
-**State:** blocked
+**State:** blocked (narrowed — OIDC trust-policy bug fixed by task 0004;
+now blocked on a second, different, pre-existing SSM document-ARN IAM bug,
+see update below)
 
 Pushed to `main` (commits `f40ba7a`, `06915c9`) as planned — this correctly
 triggered `Deploy` (run 45895241265). It failed at **"Configure AWS
@@ -35,6 +37,34 @@ This needs either: (a) explicit human sign-off to widen this task's scope
 to include that one-line module fix, or (b) a new task to fix the IAM
 module's OIDC trust condition, after which re-running `workflow_dispatch`
 on `Deploy` (no new push needed) should succeed through to a real deploy.
+
+**Update (task 0007):** chain now at a fourth bug. OIDC (0004), SSM
+document ARN (0006), and AWS-CLI-missing-on-instance plus deploy.yml's
+silent-failure masking (0007) are all fixed and verified. The deploy now
+correctly stages files onto the instance and correctly fails loudly (no
+more false "Success") — but it fails on a new bug: the EC2 instance's
+Docker daemon isn't authenticated to ECR, so `docker compose pull` for the
+private backend image is denied (`no basic auth credentials`). Still
+blocked — see `tasks/0007-fix-instance-bootstrap-and-deploy-verification/status.md`
+for full detail. Not closing this task to `done` yet; the pilot still
+isn't live.
+
+**Update (task 0004):** the OIDC trust-policy fix above has been applied
+and verified — re-running this same `Deploy` run (45895241265) now gets
+**past** "Configure AWS credentials via OIDC" successfully. (AWS's IAM API
+additionally required keeping an exact, non-wildcard `sub` condition
+alongside the new `repository` condition — see
+`tasks/0004-fix-oidc-trust-policy/status.md` for why.) The run then hit a
+**second, different, pre-existing** bug: the `gha_deploy` policy's
+`SsmSendCommandDocument` statement builds the `AWS-RunShellScript`
+document's resource ARN with this account's ID, but that document is
+Amazon-owned (public) and its real ARN has no account-ID segment, so
+`ssm:SendCommand` is denied
+(`AccessDeniedException: ... not authorized to perform: ssm:SendCommand on
+resource: arn:aws:ssm:ap-south-1::document/AWS-RunShellScript`). This is
+unrelated to anything this task (0003) built, and out of task 0004's
+ownership too — still blocking a real deploy, needs its own follow-up
+task.
 
 ## Definition-of-done checklist
 
