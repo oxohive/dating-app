@@ -177,6 +177,19 @@ jobs:
           # instance role now has the ecr:GetAuthorizationToken /
           # BatchGetImage / GetDownloadUrlForLayer / BatchCheckLayerAvailability
           # permissions this needs (infra/terraform/envs/pilot/main.tf).
+          #
+          # Deploy-asset staging uses `aws s3 cp` per file, not `aws s3
+          # sync`: discovered via real-world failure (task 0008 integration
+          # verification) that `sync`'s default change-detection (file size
+          # plus mtime) silently skips re-downloading `.env.pilot` on every
+          # single deploy, because its only ever-changing field
+          # (BACKEND_IMAGE's tag) is always a same-length 40-char git SHA,
+          # so the file's size never changes between deploys. That left the
+          # instance running a stale image for an unknown number of past
+          # "successful" deploys with no error at all -- `sync` doesn't
+          # print anything when it decides nothing needs updating, so this
+          # was invisible in every prior deploy log. `cp` always
+          # unconditionally overwrites, with no stale-skip possible.
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$EC2_INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
@@ -184,7 +197,9 @@ jobs:
             --parameters 'commands=[
               "set -e",
               "mkdir -p /opt/dating-app",
-              "aws s3 sync s3://'"$ARTIFACT_BUCKET"'/deploy/ /opt/dating-app/",
+              "aws s3 cp s3://'"$ARTIFACT_BUCKET"'/deploy/docker-compose.pilot.yml /opt/dating-app/docker-compose.pilot.yml",
+              "aws s3 cp s3://'"$ARTIFACT_BUCKET"'/deploy/nginx.conf /opt/dating-app/nginx.conf",
+              "aws s3 cp s3://'"$ARTIFACT_BUCKET"'/deploy/.env.pilot /opt/dating-app/.env.pilot",
               "cd /opt/dating-app",
               "aws ecr get-login-password --region '"$AWS_REGION"' | docker login --username AWS --password-stdin '"$REGISTRY"'",
               "docker compose -f docker-compose.pilot.yml --env-file .env.pilot pull",
