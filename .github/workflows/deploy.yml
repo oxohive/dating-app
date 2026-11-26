@@ -150,6 +150,12 @@ jobs:
             "s3://$ARTIFACT_BUCKET/deploy/.env.pilot"
 
       - name: Pull and restart Docker Compose stack on instance
+        env:
+          # Same REGISTRY this job already logged in to and pushed to above
+          # (ecr-login / build-push steps) — read back from its output
+          # rather than redefined here, so the instance logs in to the
+          # exact same registry the image was pushed to.
+          REGISTRY: ${{ steps.build-push.outputs.registry }}
         run: |
           # AWS-RunShellScript concatenates every string in `commands` into
           # one generated script file and runs it as a single bash
@@ -161,6 +167,16 @@ jobs:
           # as a successful deploy. Prepending `set -e` as the first command
           # makes the first failing command abort the whole script, so the
           # invocation's Status genuinely reflects the deploy's outcome.
+          #
+          # The ECR login below is also required for `docker compose pull`
+          # to succeed on the instance: aws-actions/amazon-ecr-login@v2
+          # above only authenticates the GitHub Actions *runner* that
+          # builds/pushes the image — the EC2 instance's own Docker daemon
+          # has never logged in to ECR, so without this it fails with
+          # "pull access denied ... no basic auth credentials". The
+          # instance role now has the ecr:GetAuthorizationToken /
+          # BatchGetImage / GetDownloadUrlForLayer / BatchCheckLayerAvailability
+          # permissions this needs (infra/terraform/envs/pilot/main.tf).
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$EC2_INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
@@ -170,6 +186,7 @@ jobs:
               "mkdir -p /opt/dating-app",
               "aws s3 sync s3://'"$ARTIFACT_BUCKET"'/deploy/ /opt/dating-app/",
               "cd /opt/dating-app",
+              "aws ecr get-login-password --region '"$AWS_REGION"' | docker login --username AWS --password-stdin '"$REGISTRY"'",
               "docker compose -f docker-compose.pilot.yml --env-file .env.pilot pull",
               "docker compose -f docker-compose.pilot.yml --env-file .env.pilot up -d",
               "docker image prune -f"

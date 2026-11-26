@@ -267,3 +267,37 @@ resource "aws_iam_role_policy" "app_instance_artifact_bucket_read" {
   role   = module.ec2_app.iam_role_name
   policy = data.aws_iam_policy_document.app_instance_artifact_bucket_read.json
 }
+
+# --- Task 0009 addition: EC2 instance ECR read access ---
+#
+# Additive only. The GitHub Actions deploy role (module.iam) already has ECR
+# auth/push/pull permissions, but that only authenticates the CI *runner*
+# that builds and pushes the image — the EC2 instance's own Docker daemon
+# has never logged in to ECR, so `docker compose pull` on the instance fails
+# with "pull access denied ... no basic auth credentials". This grants the
+# instance role exactly the read permissions it needs to log in to ECR and
+# pull the private backend image itself.
+
+data "aws_iam_policy_document" "app_instance_ecr_read" {
+  statement {
+    sid       = "EcrAuthNoResourceLevelSupport"
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"] # required: this action has no resource-level permissions
+  }
+
+  statement {
+    sid = "EcrPullBackendRepo"
+    actions = [
+      "ecr:BatchGetImage",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchCheckLayerAvailability",
+    ]
+    resources = [aws_ecr_repository.backend.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "app_instance_ecr_read" {
+  name   = "${module.ec2_app.iam_role_name}-ecr-read"
+  role   = module.ec2_app.iam_role_name
+  policy = data.aws_iam_policy_document.app_instance_ecr_read.json
+}
