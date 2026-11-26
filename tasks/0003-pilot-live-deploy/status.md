@@ -49,6 +49,18 @@ blocked — see `tasks/0007-fix-instance-bootstrap-and-deploy-verification/statu
 for full detail. Not closing this task to `done` yet; the pilot still
 isn't live.
 
+**Update (task 0008, 2026-11-26):** the celery-worker redis-py bug (task
+0009's deferred blocker) is fixed and verified — all 5 containers are now
+genuinely up, including celery-worker. Two more previously-undiscovered
+bugs were found and fixed in the same session: a missing `psycopg2-binary`
+driver, and a `deploy.yml` bug where `aws s3 sync` silently never updated
+`.env.pilot` on any deploy (fixed: per-file `aws s3 cp`). **Still not
+live end-to-end**: the pilot database's schema was never actually
+migrated (confirmed via a live 500, `relation "profiles" does not
+exist`) — needs a human-authorized `alembic upgrade head` run against the
+production DB. See `tasks/0008-mvp-feature-completion/status.md` for the
+exact command and full detail. Not closing this task yet.
+
 **Update (task 0004):** the OIDC trust-policy fix above has been applied
 and verified — re-running this same `Deploy` run (45895241265) now gets
 **past** "Configure AWS credentials via OIDC" successfully. (AWS's IAM API
