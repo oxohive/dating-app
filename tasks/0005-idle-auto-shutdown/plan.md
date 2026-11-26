@@ -107,6 +107,21 @@ Built as planned, with two things worth recording that weren't anticipated:
   Function URL was then used (also live) to bring the instance back up,
   verifying both the "stopped → start" and "running → redirect" code paths
   against real AWS, not just the mocked unit tests.
+- **The idle alarm re-fired almost immediately after that wake**, which
+  would have defeated the whole wake-on-demand feature. Root cause,
+  confirmed via the alarm's own `evaluatedDatapoints` in the CloudWatch
+  Logs trigger payload: with `treat_missing_data = "notBreaching"`,
+  CloudWatch looks *back past* a gap in the metric to find enough real
+  datapoints to fill `evaluation_periods`, rather than only ever comparing
+  the most recent consecutive window. It filled its 4-period window with
+  3 stale pre-stop datapoints plus 1 fresh one, not 4 fresh post-wake
+  ones, and re-triggered within ~2 minutes of the wake. Fixed by changing
+  `treat_missing_data` to `"missing"` (a 1-attribute, in-place Terraform
+  change, applied after discovering this live), which holds the alarm's
+  current state through a data gap instead of substituting a value and
+  searching backward for it — re-triggering after a wake now requires
+  genuinely fresh, consecutive low-CPU periods. Verified: woke the
+  instance again after the fix and it stayed up.
 
 ## Rollback
 

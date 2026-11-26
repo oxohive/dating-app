@@ -328,12 +328,21 @@ resource "aws_cloudwatch_metric_alarm" "idle_auto_stop" {
   dimensions = {
     InstanceId = module.ec2_app.instance_id
   }
-  # Missing data (e.g. instance already stopped, so no CPUUtilization
-  # datapoints) must NOT be treated as breaching — env-stop is a safe
-  # no-op on an already-stopped instance, but there's no reason to force
-  # extra invocations, and "missing" here is the expected steady state
-  # whenever the instance is off.
-  treat_missing_data = "notBreaching"
+  # "missing" (not "notBreaching"), deliberately. Confirmed live against
+  # this account: CloudWatch alarms configured with treat_missing_data =
+  # "notBreaching" (or "breaching") will look BACK PAST a gap in the
+  # metric to find enough real datapoints to fill evaluation_periods,
+  # rather than only ever comparing the most recent consecutive window.
+  # Observed in practice: the instance was stopped by this alarm, woken
+  # via env-wake two minutes later, and the alarm re-fired almost
+  # immediately — because it filled its 4-period window with 3 STALE
+  # datapoints from before the stop plus 1 fresh one, not 4 fresh
+  # post-wake datapoints. "missing" avoids that lookback entirely: a gap
+  # (the expected steady state whenever the instance is off) just holds
+  # the alarm in its current state rather than being evaluated at all,
+  # so re-triggering after a wake requires genuinely fresh, consecutive
+  # low-CPU periods again.
+  treat_missing_data = "missing"
   alarm_actions      = [aws_lambda_function.env_stop.arn]
 }
 
