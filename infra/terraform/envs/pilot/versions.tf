@@ -12,21 +12,19 @@ terraform {
     }
   }
 
-  # Remote state is NOT configured yet. This whole env currently runs with a
-  # local backend (fine for code review / `terraform validate -backend=false`
-  # / `plan`-less syntax checking) and nothing has ever been applied against
-  # real AWS. Switching on a real S3 backend, and the first real
-  # `terraform apply`, is a dedicated future task requiring explicit
-  # approval (see tasks/0002-aws-pilot-infra and infra/README.md) — do not
-  # uncomment this before that task.
-  #
-  # backend "s3" {
-  #   bucket         = "REPLACE_ME-tfstate-bucket"
-  #   key            = "pilot/terraform.tfstate"
-  #   region         = "ap-south-1"
-  #   dynamodb_table = "REPLACE_ME-tf-locks"
-  #   encrypt        = true
-  # }
+  # Remote state, bootstrapped in tasks/0002-aws-pilot-infra. The bucket
+  # itself (versioned, SSE-S3 encrypted, fully public-access-blocked) was
+  # created directly via `aws s3api` — Terraform can't manage the backend it
+  # depends on. State locking uses Terraform's native S3 lockfile (no
+  # DynamoDB table needed; requires Terraform >= 1.10, satisfied by the
+  # required_version constraint above).
+  backend "s3" {
+    bucket       = "oxohive-dating-app-tfstate-767398004313"
+    key          = "pilot/terraform.tfstate"
+    region       = "ap-south-1"
+    encrypt      = true
+    use_lockfile = true
+  }
 }
 
 provider "aws" {

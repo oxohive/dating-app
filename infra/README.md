@@ -4,21 +4,57 @@ Terraform for the Dating-app pilot infrastructure, plus the two scheduler
 Lambdas that power cost-controlled auto-stop/auto-start of the pilot EC2
 instance.
 
-## Status: code only, nothing has been applied
+## Status: real resources are live in the pilot env
 
-Everything in this directory is **infrastructure-as-code that has never been
-run against the real AWS account**. No `terraform init` against a real
-backend, no `terraform apply`, no resource has been created, modified,
-started, or stopped. This is deliberate: this machine holds live, billed AWS
-credentials for account-scoped use, and executing Terraform against that
-account is a separate, explicitly-approved step tracked as its own future
-task (see `tasks/0002-aws-pilot-infra`, owned elsewhere in this repo).
+The `pilot` env has been applied for real against AWS account
+`767398004313` (`ap-south-1` / Mumbai), per `tasks/0002-aws-pilot-infra`.
+This is a **live, billed environment** — a `t3.medium` EC2 instance, S3
+buckets, an ECR repository, IAM/OIDC resources, Lambdas, CloudWatch alarms,
+and a monthly cost budget all exist for real.
 
-There is also no remote state yet. `infra/terraform/envs/pilot/versions.tf`
-has a commented-out `backend "s3" { ... }` block — standing up that S3 state
-bucket (+ lock table) and running the *first* real `terraform init` / `apply`
-happens together, in that future task, with explicit sign-off before
-anything touches the real account.
+**Do not hardcode resource IDs/ARNs in docs or code.** They can change
+(instance replaced, bucket recreated, etc). Always get current values with:
+
+```sh
+cd infra/terraform/envs/pilot
+terraform output          # human-readable
+terraform output -json    # machine-readable
+```
+
+### Remote state
+
+Terraform state lives in S3, not locally:
+
+- Bucket: `oxohive-dating-app-tfstate-767398004313` (region `ap-south-1`,
+  versioned, SSE-S3 encrypted, fully public-access-blocked)
+- Key: `pilot/terraform.tfstate`
+- Locking: Terraform's native S3 lockfile (`use_lockfile = true` in
+  `versions.tf`'s `backend "s3"` block) — no DynamoDB table.
+
+The bucket itself was created directly via `aws s3api` (not by Terraform —
+it can't manage the backend it depends on). See the `backend "s3" { ... }`
+block in `infra/terraform/envs/pilot/versions.tf` for the exact
+configuration.
+
+### Known gap: root `.gitignore` does not exclude `*.tfvars`
+
+Despite comments in `variables.tf` / `terraform.tfvars.example` claiming
+`terraform.tfvars` is gitignored at the repo root, the root `.gitignore`
+(owned outside this task's scope) does not actually have a `*.tfvars`
+pattern. A scoped `infra/terraform/envs/pilot/.gitignore` was added as a
+safeguard for this one directory, but the root `.gitignore` should still be
+fixed to cover `*.tfvars` (with an exception for `*.tfvars.example`)
+repo-wide.
+
+### Known gap: AWS Budgets on this account only accepts USD
+
+The user-approved cost cap was INR 5,000/month, but this AWS account's
+Budgets API rejects `INR` (`InvalidParameterException: ... INR is not in
+the supported unit set: [USD]`). The live budget alarm
+(`dating-app-pilot-monthly-cap`) is currently set to **USD 55** as an
+approximate, deliberately-rounded-down stand-in — this needs explicit
+confirmation/adjustment from whoever owns the budget figure. See
+`tasks/0002-aws-pilot-infra/status.md` for details.
 
 ## What's here
 

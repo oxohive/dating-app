@@ -23,6 +23,14 @@ output "gha_deploy_role_arn" {
   value = module.iam.deploy_role_arn
 }
 
+output "ecr_repository_url" {
+  value = aws_ecr_repository.backend.repository_url
+}
+
+output "ecr_repository_name" {
+  value = aws_ecr_repository.backend.name
+}
+
 output "alerts_topic_arn" {
   value = module.cloudwatch.alerts_topic_arn
 }

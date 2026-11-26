@@ -26,7 +26,7 @@ github_repo = "dating-app"
 
 create_oidc_provider       = true
 existing_oidc_provider_arn = null
-ecr_repository_arn         = "*" # tighten to a real repo ARN once one exists
+ecr_repository_name        = "dating-app-backend"
 
 alert_emails = ["alerts@example.com"]
 

@@ -97,10 +97,10 @@ variable "existing_oidc_provider_arn" {
   default     = null
 }
 
-variable "ecr_repository_arn" {
-  description = "ARN of the ECR repository CI pushes images to. Placeholder \"*\" until a real repository exists — tighten this once it does."
+variable "ecr_repository_name" {
+  description = "Name of the ECR repository CI pushes backend images to (created in this env, not a placeholder)."
   type        = string
-  default     = "*"
+  default     = "dating-app-backend"
 }
 
 # --- CloudWatch / budget ---

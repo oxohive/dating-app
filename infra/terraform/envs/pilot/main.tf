@@ -5,8 +5,9 @@
 # (disabled), and the env-start/env-stop Lambdas + their EventBridge
 # schedule for cost-control auto-stop/auto-start.
 #
-# CODE ONLY: this has never been `terraform apply`'d against the real
-# account. See infra/README.md.
+# Applied for real against account 767398004313 (ap-south-1) in
+# tasks/0002-aws-pilot-infra. See infra/README.md for current status and
+# `terraform output` for live resource identifiers.
 
 module "networking" {
   source = "../../modules/networking"
@@ -61,6 +62,20 @@ module "ec2_app" {
   backup_bucket_arn = module.s3.backup_bucket_arn
 }
 
+resource "aws_ecr_repository" "backend" {
+  name                 = var.ecr_repository_name
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    Name    = var.ecr_repository_name
+    Purpose = "backend-container-images"
+  }
+}
+
 module "iam" {
   source = "../../modules/iam"
 
@@ -71,7 +86,7 @@ module "iam" {
 
   instance_arn        = module.ec2_app.instance_arn
   artifact_bucket_arn = aws_s3_bucket.artifacts.arn
-  ecr_repository_arn  = var.ecr_repository_arn
+  ecr_repository_arn  = aws_ecr_repository.backend.arn
 }
 
 module "cloudwatch" {
