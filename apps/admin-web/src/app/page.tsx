@@ -14,6 +14,9 @@ export default function HomePage() {
         <li>
           <Link href="/reports">Report queue</Link>
         </li>
+        <li>
+          <Link href="/login">Admin sign in</Link>
+        </li>
       </ul>
     </div>
   );

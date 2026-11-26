@@ -16,9 +16,17 @@ from sqlalchemy import engine_from_config, pool
 from packages.api.core.config import get_settings
 from packages.api.core.database import Base
 
-# Import feature model modules here so they register their tables on
-# Base.metadata before autogenerate runs. TODO: add each feature's models
-# module as it gains real ORM models (see packages/api/features/*/models.py).
+# Import every feature's model modules here so they register their tables
+# on Base.metadata before autogenerate runs. `onboarding` and `location`
+# intentionally define no ORM classes this wave (see their own models.py
+# docstrings) so they're omitted below -- there is nothing to import.
+from packages.api.features.auth import models as auth_models  # noqa: E402,F401
+from packages.api.features.discovery import models as discovery_models  # noqa: E402,F401
+from packages.api.features.likes import models as likes_models  # noqa: E402,F401
+from packages.api.features.matches import models as matches_models  # noqa: E402,F401
+from packages.api.features.messaging import models as messaging_models  # noqa: E402,F401
+from packages.api.features.profiles import models as profiles_models  # noqa: E402,F401
+from packages.api.features.safety import models as safety_models  # noqa: E402,F401
 
 config = context.config
 

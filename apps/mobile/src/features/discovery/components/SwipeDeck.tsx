@@ -1,11 +1,13 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '../../../components/Button';
 import { colors, spacing, typography } from '../../../core/theme';
-import type { DiscoveryCandidateDto, SwipeDirection } from '../api/discovery.api';
+import type { DiscoveryProfile } from '../api/discovery.api';
 import { SwipeCard } from './SwipeCard';
 
+export type SwipeDirection = 'like' | 'pass';
+
 export type SwipeDeckProps = {
-  candidates: DiscoveryCandidateDto[];
+  candidates: DiscoveryProfile[];
   onSwipe: (candidateId: string, direction: SwipeDirection) => void;
 };
 

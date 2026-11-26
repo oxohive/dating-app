@@ -1,24 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchMyProfile, type ProfileDto } from '../api/profile.api';
+import { fetchMyProfile } from '../api/profile.api';
 
-const PLACEHOLDER_PROFILE: ProfileDto = {
-  id: 'placeholder',
-  displayName: 'Your name',
-  bio: 'Add a bio to tell people about yourself.',
-  photoUrls: [],
-};
+export const PROFILE_QUERY_KEY = ['profile', 'me'] as const;
 
-/**
- * Loads the current user's profile via TanStack Query. Until the backend
- * endpoint exists, callers see placeholder data instead of an error so the
- * skeleton stays navigable.
- */
+/** Loads the current user's profile via TanStack Query. */
 export function useProfile() {
-  const query = useQuery({
-    queryKey: ['profile', 'me'],
+  return useQuery({
+    queryKey: PROFILE_QUERY_KEY,
     queryFn: fetchMyProfile,
-    initialData: PLACEHOLDER_PROFILE,
   });
-
-  return query;
 }

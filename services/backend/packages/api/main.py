@@ -44,8 +44,8 @@ app.include_router(location_router, prefix="/location", tags=["location"])
 app.include_router(discovery_router, prefix="/discovery", tags=["discovery"])
 app.include_router(likes_router, prefix="/likes", tags=["likes"])
 app.include_router(matches_router, prefix="/matches", tags=["matches"])
-app.include_router(messaging_router, prefix="/messaging", tags=["messaging"])
-app.include_router(safety_router, prefix="/safety", tags=["safety"])
+app.include_router(messaging_router, prefix="", tags=["messaging"])
+app.include_router(safety_router, prefix="", tags=["safety"])
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
 
 # NOTE: features/notifications has no routes.py by design (per spec) — it is

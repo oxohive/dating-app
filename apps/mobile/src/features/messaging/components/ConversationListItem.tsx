@@ -15,10 +15,13 @@ export type ConversationListItemProps = {
 export function ConversationListItem({ conversation, onPress }: ConversationListItemProps) {
   return (
     <View onTouchEnd={() => onPress(conversation.id)} style={styles.row}>
-      <Avatar initials={conversation.participantName.charAt(0).toUpperCase()} uri={conversation.participantPhotoUrl} />
+      <Avatar
+        initials={conversation.participant_display_name.charAt(0).toUpperCase()}
+        uri={conversation.participant_photo_url ?? undefined}
+      />
       <View style={styles.text}>
-        <Text style={styles.name}>{conversation.participantName}</Text>
-        <Text style={styles.preview}>{conversation.lastMessagePreview}</Text>
+        <Text style={styles.name}>{conversation.participant_display_name}</Text>
+        <Text style={styles.preview}>{conversation.last_message_preview ?? 'Say hello!'}</Text>
       </View>
     </View>
   );

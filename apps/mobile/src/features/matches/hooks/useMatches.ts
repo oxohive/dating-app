@@ -1,16 +1,32 @@
-import { useQuery } from '@tanstack/react-query';
-import { fetchMatches, type MatchDto } from '../api/matches.api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { fetchMatches, unmatch, type MatchDto } from '../api/matches.api';
 
 const PLACEHOLDER_MATCHES: MatchDto[] = [];
 
 /**
- * Loads the current user's matches. Placeholder empty state keeps the
- * screen navigable before the backend endpoint exists.
+ * Loads the current user's matches (`GET /matches`) and exposes an
+ * unmatch mutation (`POST /matches/{id}/unmatch`) that invalidates the
+ * list on success.
  */
 export function useMatches() {
-  return useQuery({
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
     queryKey: ['matches'],
     queryFn: fetchMatches,
     initialData: PLACEHOLDER_MATCHES,
   });
+
+  const unmatchMutation = useMutation({
+    mutationFn: unmatch,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['matches'] });
+    },
+  });
+
+  return {
+    matches: query.data,
+    isLoading: query.isLoading,
+    unmatch: unmatchMutation.mutate,
+  };
 }

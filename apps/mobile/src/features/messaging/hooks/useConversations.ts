@@ -4,8 +4,7 @@ import { fetchConversations, type ConversationDto } from '../api/messaging.api';
 const PLACEHOLDER_CONVERSATIONS: ConversationDto[] = [];
 
 /**
- * Loads the inbox list of conversations. Placeholder empty state keeps
- * the screen navigable before the backend endpoint exists.
+ * Loads the inbox list of conversations (`GET /conversations`).
  */
 export function useConversations() {
   return useQuery({

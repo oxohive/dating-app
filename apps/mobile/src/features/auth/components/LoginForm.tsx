@@ -1,6 +1,7 @@
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from '../../../components/Button';
 import { colors, spacing, typography } from '../../../core/theme';
+import { isLikelyValidPhoneNumber } from '../validation';
 
 export type LoginFormProps = {
   phoneNumber: string;
@@ -25,7 +26,7 @@ export function LoginForm({ phoneNumber, onChangePhoneNumber, onSubmit, submitti
         style={styles.input}
         value={phoneNumber}
       />
-      <Button disabled={submitting || phoneNumber.length === 0} label="Send OTP" onPress={onSubmit} />
+      <Button disabled={submitting || !isLikelyValidPhoneNumber(phoneNumber)} label="Send OTP" onPress={onSubmit} />
     </View>
   );
 }

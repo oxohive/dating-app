@@ -15,7 +15,7 @@ export function MessageBubble({ message, isOwnMessage }: MessageBubbleProps) {
   return (
     <View style={[styles.row, isOwnMessage ? styles.rowOwn : styles.rowOther]}>
       <View style={[styles.bubble, isOwnMessage ? styles.bubbleOwn : styles.bubbleOther]}>
-        <Text style={isOwnMessage ? styles.textOwn : styles.textOther}>{message.text}</Text>
+        <Text style={isOwnMessage ? styles.textOwn : styles.textOther}>{message.content}</Text>
       </View>
     </View>
   );

@@ -1,28 +1,27 @@
 import { apiClient } from '../../../core/apiClient';
 
-export type DiscoveryCandidateDto = {
+export type DiscoveryProfile = {
   id: string;
-  displayName: string;
+  display_name: string;
   age: number;
-  photoUrl?: string;
+  bio?: string | null;
+  interests?: string[] | null;
+  city: string;
+  locality: string;
+  photo_urls: string[];
 };
 
-export type SwipeDirection = 'like' | 'pass';
+export type DiscoveryFeedResponse = {
+  profiles: DiscoveryProfile[];
+  next_offset: number | null;
+};
 
-/**
- * TODO(backend-discovery-feed): wire up to the backend's discovery
- * feature slice once the candidate feed endpoint exists
- * (services/backend/discovery).
- */
-export async function fetchDiscoveryFeed(): Promise<DiscoveryCandidateDto[]> {
-  return apiClient.get<DiscoveryCandidateDto[]>('/discovery/feed');
+const FEED_PAGE_SIZE = 10;
+
+export async function fetchDiscoveryFeed(offset = 0, limit = FEED_PAGE_SIZE): Promise<DiscoveryFeedResponse> {
+  return apiClient.get<DiscoveryFeedResponse>(`/discovery/feed?limit=${limit}&offset=${offset}`);
 }
 
-/**
- * TODO(backend-discovery-swipe): wire up to the backend's discovery
- * feature slice once the swipe-decision endpoint exists
- * (services/backend/discovery).
- */
-export async function submitSwipe(candidateId: string, direction: SwipeDirection): Promise<void> {
-  await apiClient.post('/discovery/swipe', { candidateId, direction });
+export async function passProfile(toProfileId: string): Promise<void> {
+  await apiClient.post<void>('/discovery/pass', { to_profile_id: toProfileId });
 }

@@ -1,46 +1,54 @@
 import { useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
+import { useMutation } from '@tanstack/react-query';
+import type { RootNavigationProp } from '../../../app/navigation/RootNavigator';
+import { getApiErrorMessage } from '../../../core/apiErrorMessage';
 import { requestOtp, verifyOtp } from '../api/auth.api';
 import { useAuthStore } from '../store/authStore';
 
 /**
- * Placeholder auth flow hook. Returns real-shaped state/handlers so
- * screens can be built against a stable contract now; the actual
- * request/verify calls are stubbed against auth.api.ts until the
- * backend auth endpoints land.
+ * Drives the two-step phone login flow (request OTP, then verify it).
+ * Screens/components stay presentation-only; request state, session
+ * storage and navigation-on-success all live here.
  */
 export function useAuth() {
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [requestId, setRequestId] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [otpRequested, setOtpRequested] = useState(false);
   const setSession = useAuthStore((state) => state.setSession);
+  const navigation = useNavigation<RootNavigationProp>();
 
-  async function sendOtp() {
-    setIsSubmitting(true);
-    try {
-      const { requestId: newRequestId } = await requestOtp(phoneNumber);
-      setRequestId(newRequestId);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+  const requestOtpMutation = useMutation({
+    mutationFn: () => requestOtp(phoneNumber),
+    onSuccess: () => setOtpRequested(true),
+  });
 
-  async function confirmOtp(code: string) {
-    if (!requestId) return;
-    setIsSubmitting(true);
-    try {
-      const { accessToken, userId } = await verifyOtp(requestId, code);
-      setSession({ id: userId, phoneNumber }, accessToken);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+  const verifyOtpMutation = useMutation({
+    mutationFn: (code: string) => verifyOtp(phoneNumber, code),
+    onSuccess: (result) => {
+      setSession({
+        userId: result.userId,
+        phoneNumber,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      });
+      navigation.reset({
+        index: 0,
+        routes: [{ name: result.isNewUser ? 'Onboarding' : 'Discovery' }],
+      });
+    },
+  });
 
   return {
     phoneNumber,
     setPhoneNumber,
-    requestId,
-    isSubmitting,
-    sendOtp,
-    confirmOtp,
+    otpRequested,
+    sendOtp: () => requestOtpMutation.mutate(),
+    confirmOtp: (code: string) => verifyOtpMutation.mutate(code),
+    isSendingOtp: requestOtpMutation.isPending,
+    isVerifyingOtp: verifyOtpMutation.isPending,
+    requestError: requestOtpMutation.error ? getApiErrorMessage(requestOtpMutation.error) : null,
+    verifyError: verifyOtpMutation.error
+      ? getApiErrorMessage(verifyOtpMutation.error, 'That code is invalid or has expired. Please request a new one.')
+      : null,
   };
 }

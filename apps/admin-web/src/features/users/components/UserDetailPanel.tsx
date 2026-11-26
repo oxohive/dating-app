@@ -22,9 +22,14 @@ export function UserDetailPanel({ user, onSuspend }: UserDetailPanelProps) {
     <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16, maxWidth: 320 }}>
       <h3>{user.displayName}</h3>
       <p>{user.phone}</p>
-      <p>{user.city}</p>
       <p>
         Status: <Badge tone={user.status === "active" ? "success" : "danger"}>{user.status}</Badge>
+        {user.isAdmin && (
+          <>
+            {" "}
+            <Badge tone="neutral">admin</Badge>
+          </>
+        )}
       </p>
       <Button variant="danger" onClick={() => onSuspend(user)} disabled={user.status === "suspended"}>
         Suspend user

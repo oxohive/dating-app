@@ -1,6 +1,7 @@
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from '../../../components/Button';
 import { colors, spacing, typography } from '../../../core/theme';
+import { isValidOtpCode } from '../validation';
 
 export type OtpInputProps = {
   code: string;
@@ -26,7 +27,7 @@ export function OtpInput({ code, onChangeCode, onSubmit, disabled = false }: Otp
         style={styles.input}
         value={code}
       />
-      <Button disabled={disabled || code.length === 0} label="Verify" onPress={onSubmit} />
+      <Button disabled={disabled || !isValidOtpCode(code)} label="Verify" onPress={onSubmit} />
     </View>
   );
 }

@@ -4,15 +4,20 @@ import { colors, spacing, typography } from '../../../core/theme';
 export type ProfileBasicsFormProps = {
   displayName: string;
   onChangeDisplayName: (value: string) => void;
-  bio: string;
-  onChangeBio: (value: string) => void;
+  dateOfBirth: string;
+  onChangeDateOfBirth: (value: string) => void;
 };
 
 /**
- * First onboarding step: name + short bio. Single responsibility, no
+ * First onboarding step: name + date of birth. Single responsibility, no
  * navigation or submission logic here.
  */
-export function ProfileBasicsForm({ displayName, onChangeDisplayName, bio, onChangeBio }: ProfileBasicsFormProps) {
+export function ProfileBasicsForm({
+  displayName,
+  onChangeDisplayName,
+  dateOfBirth,
+  onChangeDateOfBirth,
+}: ProfileBasicsFormProps) {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>What should we call you?</Text>
@@ -23,14 +28,14 @@ export function ProfileBasicsForm({ displayName, onChangeDisplayName, bio, onCha
         style={styles.input}
         value={displayName}
       />
-      <Text style={styles.label}>A line about you</Text>
+      <Text style={styles.label}>Date of birth</Text>
       <TextInput
-        accessibilityLabel="Bio"
-        multiline
-        onChangeText={onChangeBio}
-        placeholder="Tell people a bit about yourself"
-        style={[styles.input, styles.bio]}
-        value={bio}
+        accessibilityLabel="Date of birth"
+        keyboardType="numbers-and-punctuation"
+        onChangeText={onChangeDateOfBirth}
+        placeholder="YYYY-MM-DD"
+        style={styles.input}
+        value={dateOfBirth}
       />
     </View>
   );
@@ -51,9 +56,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
     ...typography.body,
-  },
-  bio: {
-    minHeight: 80,
-    textAlignVertical: 'top',
   },
 });

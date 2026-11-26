@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/Button";
 import { suspendUser } from "@/features/moderation/api/moderation.api";
+import { ApiError } from "@/lib/apiClient";
 
 export interface SuspendDialogProps {
   userId: string;
@@ -17,12 +18,16 @@ export interface SuspendDialogProps {
 export function SuspendDialog({ userId, userName, onClose, onSuspended }: SuspendDialogProps) {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleConfirm() {
     setSubmitting(true);
+    setError(null);
     try {
       await suspendUser({ userId, reason });
       onSuspended();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not suspend this user. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -40,6 +45,7 @@ export function SuspendDialog({ userId, userName, onClose, onSuspended }: Suspen
         onChange={(event) => setReason(event.target.value)}
         style={{ width: "100%", minHeight: 80, marginBottom: 12 }}
       />
+      {error && <p style={{ color: "#dc2626", marginTop: 0 }}>{error}</p>}
       <div style={{ display: "flex", gap: 8 }}>
         <Button variant="danger" onClick={handleConfirm} disabled={submitting || reason.trim().length === 0}>
           {submitting ? "Suspending..." : "Confirm suspend"}

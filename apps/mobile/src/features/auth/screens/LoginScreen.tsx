@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ErrorText } from '../../../components/ErrorText';
 import { ScreenContainer } from '../../../components/ScreenContainer';
 import { LoginForm } from '../components/LoginForm';
 import { OtpInput } from '../components/OtpInput';
@@ -10,7 +11,17 @@ import { useAuth } from '../hooks/useAuth';
  */
 export function LoginScreen() {
   const [otpCode, setOtpCode] = useState('');
-  const { phoneNumber, setPhoneNumber, requestId, isSubmitting, sendOtp, confirmOtp } = useAuth();
+  const {
+    phoneNumber,
+    setPhoneNumber,
+    otpRequested,
+    sendOtp,
+    confirmOtp,
+    isSendingOtp,
+    isVerifyingOtp,
+    requestError,
+    verifyError,
+  } = useAuth();
 
   return (
     <ScreenContainer>
@@ -18,16 +29,18 @@ export function LoginScreen() {
         onChangePhoneNumber={setPhoneNumber}
         onSubmit={sendOtp}
         phoneNumber={phoneNumber}
-        submitting={isSubmitting}
+        submitting={isSendingOtp}
       />
-      {requestId ? (
+      {requestError ? <ErrorText message={requestError} /> : null}
+      {otpRequested ? (
         <OtpInput
           code={otpCode}
-          disabled={isSubmitting}
+          disabled={isVerifyingOtp}
           onChangeCode={setOtpCode}
           onSubmit={() => confirmOtp(otpCode)}
         />
       ) : null}
+      {verifyError ? <ErrorText message={verifyError} /> : null}
     </ScreenContainer>
   );
 }

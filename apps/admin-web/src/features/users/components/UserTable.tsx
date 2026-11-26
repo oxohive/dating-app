@@ -25,9 +25,11 @@ export function UserTable({ users, onSelect }: UserTableProps) {
           </button>
         ) },
         { key: "phone", header: "Phone", render: (user) => user.phone },
-        { key: "city", header: "City", render: (user) => user.city },
         { key: "status", header: "Status", render: (user) => (
           <Badge tone={user.status === "active" ? "success" : "danger"}>{user.status}</Badge>
+        ) },
+        { key: "role", header: "Role", render: (user) => (
+          user.isAdmin ? <Badge tone="neutral">admin</Badge> : null
         ) },
       ]}
     />

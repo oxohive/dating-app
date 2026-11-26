@@ -1,50 +1,39 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/Button";
-import { login } from "@/features/auth/api/auth.api";
+
+export interface LoginFormProps {
+  phoneNumber: string;
+  onChangePhoneNumber: (value: string) => void;
+  onSubmit: () => void;
+  submitting?: boolean;
+}
 
 /**
- * Minimal login form for admin staff. Not yet wired into routing for the
- * MVP skeleton; kept as a standalone component per the feature-first layout.
+ * Phone number capture step of admin login. Single responsibility: collect
+ * a phone number and trigger an OTP request.
  */
-export function LoginForm() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+export function LoginForm({ phoneNumber, onChangePhoneNumber, onSubmit, submitting = false }: LoginFormProps) {
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmitting(true);
-    try {
-      await login({ email, password });
-    } finally {
-      setSubmitting(false);
-    }
+    onSubmit();
   }
 
   return (
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 320 }}>
       <label>
-        Email
+        Phone number
         <input
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          type="tel"
+          placeholder="+91 90000 00000"
+          value={phoneNumber}
+          onChange={(event) => onChangePhoneNumber(event.target.value)}
+          disabled={submitting}
           required
         />
       </label>
-      <label>
-        Password
-        <input
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          required
-        />
-      </label>
-      <Button type="submit" disabled={submitting}>
-        {submitting ? "Signing in..." : "Sign in"}
+      <Button type="submit" disabled={submitting || phoneNumber.trim().length === 0}>
+        {submitting ? "Sending..." : "Send OTP"}
       </Button>
     </form>
   );
