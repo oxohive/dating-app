@@ -151,11 +151,22 @@ jobs:
 
       - name: Pull and restart Docker Compose stack on instance
         run: |
+          # AWS-RunShellScript concatenates every string in `commands` into
+          # one generated script file and runs it as a single bash
+          # invocation — but WITHOUT `set -e`, a failed command inside it
+          # does not abort the rest, so a later command that succeeds on its
+          # own (e.g. `docker image prune -f`) still yields an overall
+          # Status of "Success". That's exactly how a prior bug (the AWS CLI
+          # missing from the instance, so `aws s3 sync` failed) was masked
+          # as a successful deploy. Prepending `set -e` as the first command
+          # makes the first failing command abort the whole script, so the
+          # invocation's Status genuinely reflects the deploy's outcome.
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$EC2_INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --comment "dating-app deploy ${{ github.sha }}" \
             --parameters 'commands=[
+              "set -e",
               "mkdir -p /opt/dating-app",
               "aws s3 sync s3://'"$ARTIFACT_BUCKET"'/deploy/ /opt/dating-app/",
               "cd /opt/dating-app",
@@ -167,10 +178,24 @@ jobs:
             --output text)
           aws ssm wait command-executed \
             --command-id "$COMMAND_ID" \
-            --instance-id "$EC2_INSTANCE_ID"
-          aws ssm get-command-invocation \
+            --instance-id "$EC2_INSTANCE_ID" || true
+
+          INVOCATION=$(aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
-            --instance-id "$EC2_INSTANCE_ID"
+            --instance-id "$EC2_INSTANCE_ID")
+          echo "$INVOCATION"
+
+          STATUS=$(echo "$INVOCATION" | jq -r '.Status')
+          echo "SSM command status: $STATUS"
+
+          if [ "$STATUS" != "Success" ]; then
+            echo "::error::Deploy SSM command did not succeed (Status=$STATUS)."
+            echo "--- StandardErrorContent ---"
+            echo "$INVOCATION" | jq -r '.StandardErrorContent'
+            echo "--- StandardOutputContent ---"
+            echo "$INVOCATION" | jq -r '.StandardOutputContent'
+            exit 1
+          fi
 
   deploy-skipped:
     name: Deploy skipped (infra not provisioned)
