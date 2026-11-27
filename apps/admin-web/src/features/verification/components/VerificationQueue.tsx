@@ -10,6 +10,7 @@ export interface VerificationQueueProps {
   verifications: Verification[];
   onApprove: (verificationId: string) => void;
   onReject: (verificationId: string) => void;
+  loading?: boolean;
 }
 
 const STATUS_TONE: Record<Verification["status"], "warning" | "success" | "danger"> = {
@@ -24,12 +25,13 @@ const STATUS_TONE: Record<Verification["status"], "warning" | "success" | "dange
  * approve/reject actions; already-reviewed submissions show who reviewed
  * them and when instead (review history), per the W2 brief.
  */
-export function VerificationQueue({ verifications, onApprove, onReject }: VerificationQueueProps) {
+export function VerificationQueue({ verifications, onApprove, onReject, loading = false }: VerificationQueueProps) {
   return (
     <Table<Verification>
       rows={verifications}
       getRowKey={(verification) => verification.id}
       emptyMessage="No verification submissions match this filter."
+      loading={loading}
       columns={[
         {
           key: "profile",

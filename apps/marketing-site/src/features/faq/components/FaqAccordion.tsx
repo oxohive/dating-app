@@ -9,9 +9,24 @@ interface FaqItem {
 }
 
 const FAQ_ITEMS: FaqItem[] = [
-  { question: "Is the app free?", answer: "Lorem ipsum dolor sit amet, consectetur adipiscing elit." },
-  { question: "How do I get verified?", answer: "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua." },
-  { question: "Is my data safe?", answer: "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris." },
+  {
+    question: "Is the app free?",
+    answer:
+      "Yes. The Free plan gives you basic matching and 5 likes a day at no cost. " +
+      "Plus and Premium add unlimited likes and extra discovery features if you want more.",
+  },
+  {
+    question: "How do I get verified?",
+    answer:
+      "During onboarding, you'll take a quick selfie that we match against your profile " +
+      "photos. It's a one-time check, and it's how we keep profiles real across the app.",
+  },
+  {
+    question: "Is my data safe?",
+    answer:
+      "We don't sell your personal data, and your precise location is never shown to " +
+      "other users. See our Privacy Policy for the full details on what we collect and why.",
+  },
 ];
 
 /**
@@ -32,7 +47,7 @@ export function FaqAccordion() {
             >
               <button
                 onClick={() => setOpenIndex(isOpen ? null : index)}
-                className="flex w-full items-center justify-between gap-4 px-6 py-4 text-left font-semibold text-neutral-900 transition-colors hover:text-primary-600"
+                className="flex w-full items-center justify-between gap-4 px-6 py-4 text-left font-semibold text-neutral-900 transition-colors hover:text-primary-600 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-400"
                 aria-expanded={isOpen}
               >
                 {item.question}

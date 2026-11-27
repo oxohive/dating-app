@@ -19,14 +19,14 @@ export function Footer() {
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm font-medium text-neutral-600 transition-colors hover:text-primary-600"
+              className="rounded-md text-sm font-medium text-neutral-600 transition-colors hover:text-primary-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-400"
             >
               {link.label}
             </Link>
           ))}
         </nav>
 
-        <p className="border-t border-neutral-200 pt-6 text-sm text-neutral-500">
+        <p className="border-t border-neutral-200 pt-6 text-sm text-neutral-600">
           &copy; {new Date().getFullYear()} Dating App. Chennai pilot.
         </p>
       </div>

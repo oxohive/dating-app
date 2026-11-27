@@ -14,6 +14,12 @@ export const colors = {
   border: '#E5E5E5',
   danger: '#D1293D',
   success: '#2F9E63',
+  // Text/icon color for content sitting on a colored (primary/danger)
+  // background — distinct from `background`, which means "page
+  // background" (white), not "text on a colored surface". Small
+  // cleanup token for the handful of call sites that previously wrote
+  // a raw '#FFFFFF' for this purpose.
+  onPrimary: '#FFFFFF',
 } as const;
 
 export const spacing = {

@@ -11,7 +11,7 @@ import { useAuditLog } from "@/features/audit/hooks/useAuditLog";
  * reports/verification pages.
  */
 export default function AuditPage() {
-  const { entries, error } = useAuditLog();
+  const { entries, loading, error } = useAuditLog();
 
   return (
     <RequireAdminAuth>
@@ -20,7 +20,7 @@ export default function AuditPage() {
         Admin Audit Log
       </h1>
       {error && <p className="mb-3 text-sm font-medium text-rose-600">{error}</p>}
-      <AuditLogTable entries={entries} />
+      <AuditLogTable entries={entries} loading={loading} />
     </RequireAdminAuth>
   );
 }

@@ -28,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${heading.variable} ${body.variable}`}>
       <body className="min-h-screen bg-[#fffaf8] font-sans text-neutral-800 antialiased">
         <Header />
-        {children}
+        <main>{children}</main>
         <Footer />
       </body>
     </html>

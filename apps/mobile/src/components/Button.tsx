@@ -21,10 +21,11 @@ export function Button({ label, onPress, variant = 'primary', disabled = false }
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[
+      style={({ pressed }) => [
         styles.base,
         isPrimary ? styles.primary : styles.secondary,
         disabled && styles.disabled,
+        pressed && !disabled && styles.pressed,
       ]}
     >
       <Text style={[styles.label, isPrimary ? styles.labelPrimary : styles.labelSecondary]}>{label}</Text>
@@ -34,6 +35,7 @@ export function Button({ label, onPress, variant = 'primary', disabled = false }
 
 const styles = StyleSheet.create({
   base: {
+    minHeight: 44,
     paddingVertical: spacing.sm + 4,
     paddingHorizontal: spacing.lg,
     borderRadius: radii.md,
@@ -51,12 +53,19 @@ const styles = StyleSheet.create({
   disabled: {
     opacity: 0.5,
   },
+  // Every Button instance was previously silent on press — no visual
+  // acknowledgment that a tap registered while its action (OTP send,
+  // like/pass, send message, ...) is in flight. This is the single
+  // shared primitive, so fixing it here covers every screen at once.
+  pressed: {
+    opacity: 0.75,
+  },
   label: {
     ...typography.body,
     fontWeight: '600',
   },
   labelPrimary: {
-    color: '#FFFFFF',
+    color: colors.onPrimary,
   },
   labelSecondary: {
     color: colors.text,

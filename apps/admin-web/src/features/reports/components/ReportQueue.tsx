@@ -1,44 +1,48 @@
 "use client";
 
-import { Inbox } from "lucide-react";
+import { Badge } from "@/components/Badge";
+import { Button } from "@/components/Button";
+import { Table } from "@/components/Table";
 import { Report } from "@/features/reports/api/reports.api";
-import { ReportRow } from "@/features/reports/components/ReportRow";
 
 export interface ReportQueueProps {
   reports: Report[];
   onResolve: (reportId: string) => void;
+  loading?: boolean;
 }
 
 /**
- * Table of pending moderation reports.
+ * Table of pending moderation reports. Composed from the shared `Table`
+ * primitive (same convention as `UserTable`/`VerificationQueue`/
+ * `SubscriptionTable`/`PaymentTable`/`AuditLogTable`) instead of hand-rolled
+ * table markup - this previously duplicated `Table`'s row/header/empty-state
+ * styling verbatim via a dedicated `ReportRow` component.
  */
-export function ReportQueue({ reports, onResolve }: ReportQueueProps) {
-  if (reports.length === 0) {
-    return (
-      <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white py-14 text-center">
-        <Inbox size={28} className="text-slate-400" />
-        <p className="text-sm text-slate-500">No reports in the queue.</p>
-      </div>
-    );
-  }
-
+export function ReportQueue({ reports, onResolve, loading = false }: ReportQueueProps) {
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card">
-      <table className="w-full border-collapse text-left text-sm">
-        <thead>
-          <tr className="border-b border-slate-200 bg-slate-50">
-            <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">User</th>
-            <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Reason</th>
-            <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
-            <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {reports.map((report) => (
-            <ReportRow key={report.id} report={report} onResolve={onResolve} />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Table<Report>
+      rows={reports}
+      getRowKey={(report) => report.id}
+      emptyMessage="No reports in the queue."
+      loading={loading}
+      columns={[
+        { key: "user", header: "User", render: (report) => report.reportedUserName },
+        { key: "reason", header: "Reason", render: (report) => report.reason },
+        {
+          key: "status",
+          header: "Status",
+          render: (report) => <Badge tone={report.status === "open" ? "warning" : "success"}>{report.status}</Badge>,
+        },
+        {
+          key: "actions",
+          header: "Action",
+          render: (report) => (
+            <Button variant="secondary" disabled={report.status === "resolved"} onClick={() => onResolve(report.id)}>
+              Mark resolved
+            </Button>
+          ),
+        },
+      ]}
+    />
   );
 }

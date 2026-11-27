@@ -9,17 +9,17 @@ interface Step {
 const STEPS: Step[] = [
   {
     title: "Create a profile",
-    description: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+    description: "Add a few real photos and the things that make you, you. Takes under five minutes.",
     icon: UserPlus,
   },
   {
     title: "Get verified",
-    description: "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    description: "A quick selfie check confirms you're really you, so matches know who they're talking to.",
     icon: ShieldCheck,
   },
   {
     title: "Start matching",
-    description: "Ut enim ad minim veniam, quis nostrud exercitation ullamco.",
+    description: "Browse verified profiles near you in Chennai and message the ones you connect with.",
     icon: Sparkles,
   },
 ];
@@ -34,7 +34,7 @@ export function HowItWorks() {
         <h2 className="font-display text-3xl font-bold text-neutral-900 sm:text-4xl">
           How it works
         </h2>
-        <p className="mt-3 text-neutral-500">Three simple steps to your next great match.</p>
+        <p className="mt-3 text-neutral-600">Three simple steps to your next great match.</p>
       </div>
 
       <div className="grid gap-8 sm:grid-cols-3">

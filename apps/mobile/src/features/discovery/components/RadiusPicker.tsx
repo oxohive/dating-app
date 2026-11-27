@@ -81,6 +81,8 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   option: {
+    minHeight: 44,
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.full,

@@ -37,7 +37,7 @@ export default function PaymentsPage() {
 
   return (
     <RequireAdminAuth>
-      <h1 className="mb-6 flex items-center gap-2 text-2xl font-semibold text-slate-900">
+      <h1 className="mb-4 flex items-center gap-2 text-2xl font-semibold text-slate-900">
         <CreditCard size={22} className="text-primary-600" />
         Subscriptions &amp; Payments
       </h1>
@@ -50,7 +50,7 @@ export default function PaymentsPage() {
           onChange={subscriptionsState.setStatusFilter}
         />
         {subscriptionsState.error && <p className="mb-3 text-sm font-medium text-rose-600">{subscriptionsState.error}</p>}
-        <SubscriptionTable subscriptions={subscriptionsState.subscriptions} />
+        <SubscriptionTable subscriptions={subscriptionsState.subscriptions} loading={subscriptionsState.loading} />
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-card">
@@ -61,7 +61,7 @@ export default function PaymentsPage() {
           onChange={paymentsState.setStatusFilter}
         />
         {paymentsState.error && <p className="mb-3 text-sm font-medium text-rose-600">{paymentsState.error}</p>}
-        <PaymentTable payments={paymentsState.payments} onRefund={paymentsState.refund} />
+        <PaymentTable payments={paymentsState.payments} onRefund={paymentsState.refund} loading={paymentsState.loading} />
       </section>
     </RequireAdminAuth>
   );

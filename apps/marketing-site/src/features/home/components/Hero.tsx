@@ -26,8 +26,9 @@ export function Hero() {
           </span>
         </h1>
         <p className="mx-auto mt-6 max-w-xl text-lg text-neutral-600 sm:text-xl">
-          Lorem ipsum dolor sit amet, consectetur adipiscing elit. Meet
-          verified singles near you.
+          No endless swiping through fake profiles. Every member is verified,
+          so you can skip the small talk about whether someone&apos;s real
+          and get to the conversation that matters.
         </p>
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <Button href="#">Get the app</Button>

@@ -29,7 +29,7 @@ export function ContactDetails() {
             For support, safety reports, or anything else, email us at{" "}
             <a
               href={`mailto:${SUPPORT_EMAIL}`}
-              className="font-medium text-primary-600 underline-offset-2 hover:underline"
+              className="rounded-sm font-medium text-primary-600 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-400"
             >
               {SUPPORT_EMAIL}
             </a>
@@ -48,7 +48,10 @@ export function ContactDetails() {
             <span>
               Thanks — this form isn&apos;t wired up to send messages yet. Please
               email{" "}
-              <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium underline-offset-2 hover:underline">
+              <a
+                href={`mailto:${SUPPORT_EMAIL}`}
+                className="rounded-sm font-medium underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700"
+              >
                 {SUPPORT_EMAIL}
               </a>{" "}
               and we&apos;ll get back to you there.
@@ -89,7 +92,7 @@ export function ContactDetails() {
             <div>
               <button
                 type="submit"
-                className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-6 py-3 text-sm font-semibold text-white shadow-soft transition-all duration-200 hover:bg-primary-600 hover:shadow-lg hover:-translate-y-0.5"
+                className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-6 py-3 text-sm font-semibold text-white shadow-soft transition-all duration-200 hover:bg-primary-600 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:bg-primary-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-400"
               >
                 <Send className="h-4 w-4" aria-hidden="true" />
                 Send

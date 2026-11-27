@@ -1,4 +1,4 @@
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text } from 'react-native';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
 import { Card } from '../../../components/Card';
@@ -26,10 +26,15 @@ export function MatchCard({ match, onPress, onUnmatch }: MatchCardProps) {
 
   return (
     <Card>
-      <View onTouchEnd={() => onPress(match)} style={styles.row}>
+      <Pressable
+        accessibilityLabel={`Open conversation with ${match.profile.display_name}`}
+        accessibilityRole="button"
+        onPress={() => onPress(match)}
+        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+      >
         <Avatar initials={match.profile.display_name.charAt(0).toUpperCase()} uri={match.profile.photo_url ?? undefined} />
         <Text style={styles.name}>{match.profile.display_name}</Text>
-      </View>
+      </Pressable>
       <Button label="Unmatch" onPress={handleUnmatchPress} variant="secondary" />
     </Card>
   );
@@ -41,6 +46,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     marginBottom: spacing.sm,
+  },
+  rowPressed: {
+    opacity: 0.6,
   },
   name: {
     ...typography.body,

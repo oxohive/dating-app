@@ -7,17 +7,19 @@ import { AdminUser } from "@/features/users/api/users.api";
 export interface UserTableProps {
   users: AdminUser[];
   onSelect: (user: AdminUser) => void;
+  loading?: boolean;
 }
 
 /**
  * Renders the admin user search results as a table.
  */
-export function UserTable({ users, onSelect }: UserTableProps) {
+export function UserTable({ users, onSelect, loading = false }: UserTableProps) {
   return (
     <Table<AdminUser>
       rows={users}
       getRowKey={(user) => user.id}
       emptyMessage="No users match your search."
+      loading={loading}
       columns={[
         { key: "name", header: "Name", render: (user) => (
           <button

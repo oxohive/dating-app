@@ -15,7 +15,7 @@ import { RequireAdminAuth } from "@/features/auth/components/RequireAdminAuth";
  * moderation suspend dialog. All data access happens in feature hooks/api.
  */
 export default function UsersPage() {
-  const { users, error, query, setQuery, markSuspended } = useUsers();
+  const { users, loading, error, query, setQuery, markSuspended } = useUsers();
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [suspendTarget, setSuspendTarget] = useState<AdminUser | null>(null);
 
@@ -37,7 +37,7 @@ export default function UsersPage() {
           </h1>
           <UserSearchBar value={query} onChange={setQuery} />
           {error && <p className="mb-3 text-sm font-medium text-rose-600">{error}</p>}
-          <UserTable users={users} onSelect={setSelectedUser} />
+          <UserTable users={users} onSelect={setSelectedUser} loading={loading} />
         </div>
         <div className="flex-none">
           <UserDetailPanel user={selectedUser} onSuspend={setSuspendTarget} />

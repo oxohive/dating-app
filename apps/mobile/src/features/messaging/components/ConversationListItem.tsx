@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '../../../components/Avatar';
 import { colors, spacing, typography } from '../../../core/theme';
 import type { ConversationDto } from '../api/messaging.api';
@@ -14,7 +14,12 @@ export type ConversationListItemProps = {
  */
 export function ConversationListItem({ conversation, onPress }: ConversationListItemProps) {
   return (
-    <View onTouchEnd={() => onPress(conversation.id)} style={styles.row}>
+    <Pressable
+      accessibilityLabel={`Open conversation with ${conversation.participant_display_name}`}
+      accessibilityRole="button"
+      onPress={() => onPress(conversation.id)}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+    >
       <Avatar
         initials={conversation.participant_display_name.charAt(0).toUpperCase()}
         uri={conversation.participant_photo_url ?? undefined}
@@ -23,7 +28,7 @@ export function ConversationListItem({ conversation, onPress }: ConversationList
         <Text style={styles.name}>{conversation.participant_display_name}</Text>
         <Text style={styles.preview}>{conversation.last_message_preview ?? 'Say hello!'}</Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -33,6 +38,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     paddingVertical: spacing.sm,
+    minHeight: 44,
+  },
+  rowPressed: {
+    opacity: 0.6,
   },
   text: {
     flex: 1,

@@ -17,7 +17,13 @@ export function QuotaExceededBanner({ resetsAt, onDismiss }: QuotaExceededBanner
   const resetsAtLabel = new Date(resetsAt).toLocaleString();
 
   return (
-    <Pressable disabled={!onDismiss} onPress={onDismiss} style={styles.banner}>
+    <Pressable
+      accessibilityLabel={onDismiss ? 'Dismiss: you have used today\'s likes' : undefined}
+      accessibilityRole={onDismiss ? 'button' : undefined}
+      disabled={!onDismiss}
+      onPress={onDismiss}
+      style={({ pressed }) => [styles.banner, pressed && onDismiss && styles.bannerPressed]}
+    >
       <Text style={styles.title}>You&apos;ve used today&apos;s likes</Text>
       <Text style={styles.body}>Check back after {resetsAtLabel} for more.</Text>
     </Pressable>
@@ -30,6 +36,9 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     padding: spacing.md,
     marginBottom: spacing.md,
+  },
+  bannerPressed: {
+    opacity: 0.75,
   },
   title: {
     ...typography.subtitle,

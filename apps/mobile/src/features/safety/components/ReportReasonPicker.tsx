@@ -48,6 +48,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   chip: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
     borderRadius: radii.full,
@@ -64,6 +66,6 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   labelSelected: {
-    color: '#FFFFFF',
+    color: colors.onPrimary,
   },
 });

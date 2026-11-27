@@ -20,7 +20,7 @@ const STATUS_OPTIONS: Array<{ value: VerificationStatusFilter; label: string }> 
  * hook/api.
  */
 export default function VerificationPage() {
-  const { verifications, error, statusFilter, setStatusFilter, approve, reject } = useVerifications();
+  const { verifications, loading, error, statusFilter, setStatusFilter, approve, reject } = useVerifications();
 
   return (
     <RequireAdminAuth>
@@ -30,7 +30,7 @@ export default function VerificationPage() {
       </h1>
       <StatusFilter value={statusFilter} options={STATUS_OPTIONS} onChange={setStatusFilter} />
       {error && <p className="mb-3 text-sm font-medium text-rose-600">{error}</p>}
-      <VerificationQueue verifications={verifications} onApprove={approve} onReject={reject} />
+      <VerificationQueue verifications={verifications} onApprove={approve} onReject={reject} loading={loading} />
     </RequireAdminAuth>
   );
 }

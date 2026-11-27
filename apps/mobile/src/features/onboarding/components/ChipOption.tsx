@@ -27,6 +27,8 @@ export function ChipOption({ label, selected, onPress }: ChipOptionProps) {
 
 const styles = StyleSheet.create({
   chip: {
+    minHeight: 44,
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.full,

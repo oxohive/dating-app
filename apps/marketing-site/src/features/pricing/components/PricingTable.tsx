@@ -42,7 +42,7 @@ export function PricingTable() {
               <h3 className="font-display text-xl font-bold text-neutral-900">{plan.name}</h3>
               <p className="mt-4 font-display text-4xl font-extrabold text-neutral-900">
                 {formatPriceInRupees(plan.priceInPaise)}
-                <span className="text-base font-medium text-neutral-400">/mo</span>
+                <span className="text-base font-medium text-neutral-600">/mo</span>
               </p>
               <ul className="mt-6 flex-1 space-y-3">
                 {plan.features.map((feature) => (

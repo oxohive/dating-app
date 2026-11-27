@@ -25,7 +25,7 @@ const STORE_ICONS: Record<string, typeof Apple> = {
 export function AppDownloadBadges() {
   return (
     <section className="mx-auto max-w-3xl px-6 pb-24 text-center">
-      <p className="mb-6 text-sm text-neutral-500">
+      <p className="mb-6 text-sm text-neutral-600">
         We&apos;re in the Chennai pilot, so Dating App isn&apos;t on the
         public app stores just yet. Badges below will go live at launch.
       </p>
@@ -36,11 +36,11 @@ export function AppDownloadBadges() {
             <div
               key={badge.store}
               aria-disabled="true"
-              className="flex min-w-[180px] items-center gap-3 rounded-xl2 border border-neutral-200 bg-neutral-50 px-5 py-3.5 text-left text-neutral-400"
+              className="flex min-w-[180px] items-center gap-3 rounded-xl2 border border-neutral-200 bg-neutral-50 px-5 py-3.5 text-left text-neutral-600"
             >
               <Icon className="h-6 w-6 flex-shrink-0 text-neutral-300" aria-hidden="true" />
               <div>
-                <strong className="block text-sm font-semibold text-neutral-500">
+                <strong className="block text-sm font-semibold text-neutral-600">
                   {badge.store}
                 </strong>
                 <span className="text-xs">{badge.note}</span>

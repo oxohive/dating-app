@@ -9,7 +9,7 @@ import { RequireAdminAuth } from "@/features/auth/components/RequireAdminAuth";
  * Reports page: thin composition of the reports feature components.
  */
 export default function ReportsPage() {
-  const { reports, error, resolve } = useReports();
+  const { reports, loading, error, resolve } = useReports();
 
   return (
     <RequireAdminAuth>
@@ -18,7 +18,7 @@ export default function ReportsPage() {
         Report Queue
       </h1>
       {error && <p className="mb-3 text-sm font-medium text-rose-600">{error}</p>}
-      <ReportQueue reports={reports} onResolve={resolve} />
+      <ReportQueue reports={reports} onResolve={resolve} loading={loading} />
     </RequireAdminAuth>
   );
 }

@@ -43,7 +43,12 @@ export function ServerWakeGate({ children }: ServerWakeGateProps) {
           message={wakeState.status === 'error' ? wakeState.message : undefined}
           variant={wakeState.status}
         />
-        <Pressable onPress={() => runWakeCheck()} style={styles.retryButton}>
+        <Pressable
+          accessibilityLabel="Try again"
+          accessibilityRole="button"
+          onPress={() => runWakeCheck()}
+          style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]}
+        >
           <Text style={styles.retryText}>Try again</Text>
         </Pressable>
       </View>
@@ -62,10 +67,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 56,
     alignSelf: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
     backgroundColor: colors.primary,
     paddingHorizontal: 28,
     paddingVertical: 12,
     borderRadius: 999,
+  },
+  retryButtonPressed: {
+    opacity: 0.75,
   },
   retryText: {
     color: '#ffffff',

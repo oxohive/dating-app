@@ -8,6 +8,7 @@ import { RefundAction } from "@/features/payments/components/RefundAction";
 export interface PaymentTableProps {
   payments: Payment[];
   onRefund: (paymentId: string) => void;
+  loading?: boolean;
 }
 
 // Each payment status gets its own distinguishable badge tone - "refunded"
@@ -25,12 +26,13 @@ const STATUS_TONE: Record<Payment["status"], "success" | "warning" | "danger" | 
  * wave has no real Razorpay keys wired - it is visibility only, never a
  * payment-processing surface.
  */
-export function PaymentTable({ payments, onRefund }: PaymentTableProps) {
+export function PaymentTable({ payments, onRefund, loading = false }: PaymentTableProps) {
   return (
     <Table<Payment>
       rows={payments}
       getRowKey={(payment) => payment.id}
       emptyMessage="No payments match this filter."
+      loading={loading}
       columns={[
         { key: "user", header: "User", render: (payment) => payment.userId },
         { key: "provider", header: "Provider", render: (payment) => <span className="text-slate-500">{payment.provider}</span> },
