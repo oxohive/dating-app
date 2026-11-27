@@ -8,6 +8,7 @@ and every feature router that exposes HTTP endpoints. Run locally with:
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from packages.api.core.config import get_settings
 from packages.api.core.correlation_id import CorrelationIdMiddleware
@@ -36,6 +37,22 @@ settings = get_settings()
 app = FastAPI(title=settings.app_name)
 
 app.add_middleware(CorrelationIdMiddleware)
+
+# CORS: browser-based clients (admin-web, marketing-site) live on different
+# origins from the backend's own domain, and FastAPI allows no cross-origin
+# requests by default. This was never caught by earlier testing: /docs is
+# same-origin, and native mobile clients don't enforce CORS at all — it only
+# surfaced once admin-web started calling the backend over a real domain
+# instead of being blocked earlier by mixed-content (plain HTTP from an
+# HTTPS page). Covers the two production custom domains plus any Vercel
+# preview deployment (dynamic *.vercel.app subdomains) and local dev.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"https://([a-zA-Z0-9-]+\.)*oxohive\.com|https://[a-zA-Z0-9-]+\.vercel\.app|http://localhost(:\d+)?",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Health is mounted bare (no prefix) at /health; every other feature is
 # mounted under its own prefix.
