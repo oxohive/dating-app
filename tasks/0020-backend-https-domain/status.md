@@ -168,6 +168,25 @@ stale EC2-hosted admin-web IP note.
 
 ### 7. Commit / CI / Deploy
 
-See the final commit SHA and CI/Deploy run results recorded by whoever
-closes this out after push (filled in after the push + workflow runs
-below this line, if done in the same sitting).
+Commit `f8a5832` pushed to `main`. Both triggered workflow runs
+completed green:
+
+- CI: run `46051871593` — `success`
+  (https://github.com/oxohive/dating-app/actions/runs/46051871593)
+- Deploy: run `46051871633` — `success`
+  (https://github.com/oxohive/dating-app/actions/runs/46051871633)
+
+Post-deploy re-verification (the deploy pipeline re-synced
+`nginx.conf`/`docker-compose.pilot.yml` from S3 and recreated the
+`nginx` container, so this re-confirms the committed config — not just
+the manually-staged version — is what's actually live):
+
+```
+https_health=200
+plain_http_health=200
+marketing_site=200
+admin_web_8081=200
+```
+
+and the certificate still verifies (`SSL certificate verify ok`,
+`issuer: ... Let's Encrypt`) after that container recreation.
