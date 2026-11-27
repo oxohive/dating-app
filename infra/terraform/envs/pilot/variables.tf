@@ -103,6 +103,42 @@ variable "ecr_repository_name" {
   default     = "dating-app-backend"
 }
 
+# --- Task 0013 additions: admin-web / marketing-site ECR repos ---
+#
+# Defaults below are referenced by name (not via a terraform output) in
+# .github/workflows/deploy.yml's ECR_ADMIN_WEB_REPOSITORY /
+# ECR_MARKETING_SITE_REPOSITORY GitHub Actions repo variables — if either
+# default here is overridden in a real terraform.tfvars, update those GitHub
+# variables (`gh variable set ...`) to match.
+
+variable "ecr_admin_web_repository_name" {
+  description = "Name of the ECR repository CI pushes admin-web images to."
+  type        = string
+  default     = "dating-app-admin-web"
+}
+
+variable "ecr_marketing_site_repository_name" {
+  description = "Name of the ECR repository CI pushes marketing-site images to."
+  type        = string
+  default     = "dating-app-marketing-site"
+}
+
+variable "admin_web_ingress_cidr_blocks" {
+  description = <<-EOT
+    CIDR blocks allowed to reach admin-web over HTTP on its dedicated port
+    (8081 — a distinct port was chosen over a `/admin/` nginx path prefix
+    to avoid Next.js basePath/asset-path pitfalls). Defaults to the same
+    open range as the rest of the pilot's HTTP ingress: admin-web is not
+    further IP-restricted at the network layer because it already enforces
+    its own application-level auth (RequireAdminAuth client-side, and the
+    backend's own `is_admin` check server-side on every /admin/* endpoint
+    — the real enforcement boundary), consistent with how the rest of this
+    single-instance pilot is secured.
+  EOT
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
 # --- CloudWatch / budget ---
 
 variable "alert_emails" {

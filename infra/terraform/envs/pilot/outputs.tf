@@ -36,6 +36,32 @@ output "ecr_repository_name" {
   value = aws_ecr_repository.backend.name
 }
 
+output "ecr_admin_web_repository_url" {
+  value = aws_ecr_repository.admin_web.repository_url
+}
+
+output "ecr_admin_web_repository_name" {
+  value = aws_ecr_repository.admin_web.name
+}
+
+output "ecr_marketing_site_repository_url" {
+  value = aws_ecr_repository.marketing_site.repository_url
+}
+
+output "ecr_marketing_site_repository_name" {
+  value = aws_ecr_repository.marketing_site.name
+}
+
+output "marketing_site_url" {
+  description = "Public marketing-site URL (task 0013) — served at the static IP's root path."
+  value       = "http://${aws_eip.pilot.public_ip}/"
+}
+
+output "admin_web_url" {
+  description = "Public admin-web URL (task 0013) — distinct port, gated by its own login + the backend's is_admin check."
+  value       = "http://${aws_eip.pilot.public_ip}:8081/"
+}
+
 output "alerts_topic_arn" {
   value = module.cloudwatch.alerts_topic_arn
 }

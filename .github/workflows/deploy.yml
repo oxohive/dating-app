@@ -42,6 +42,23 @@ jobs:
       # infra existing — this job is gated by check-ready above, so it never
       # runs until those vars are actually set.
       ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+      # Task 0013: admin-web / marketing-site ECR repos, provisioned by
+      # infra/terraform/envs/pilot/main.tf (aws_ecr_repository.admin_web /
+      # .marketing_site). Set as GitHub Actions repo variables the same way
+      # ECR_REPOSITORY already was (task 0003) — names match those
+      # resources' default var values (ecr_admin_web_repository_name /
+      # ecr_marketing_site_repository_name in variables.tf).
+      ECR_ADMIN_WEB_REPOSITORY: ${{ vars.ECR_ADMIN_WEB_REPOSITORY }}
+      ECR_MARKETING_SITE_REPOSITORY: ${{ vars.ECR_MARKETING_SITE_REPOSITORY }}
+      # Browser-reachable backend API base URL, baked into admin-web's
+      # client JS bundle at image-build time (see apps/admin-web/Dockerfile
+      # and src/lib/apiClient.ts — admin-web's API calls run client-side, so
+      # this can't be an internal Docker-network address like
+      # http://backend:8000; it must resolve from the user's own browser).
+      # This is the pilot's static Elastic IP from task 0011
+      # (infra/terraform/envs/pilot's `static_public_ip` output) — update
+      # this if that output ever changes.
+      ADMIN_WEB_PUBLIC_API_BASE_URL: http://15.206.247.148
       # Confirmed live via `terraform output artifact_bucket_id` in
       # infra/terraform/envs/pilot (task 0003). Deploy assets (compose file,
       # nginx conf, rendered .env.pilot) are staged under deploy/ here, then
@@ -109,6 +126,35 @@ jobs:
           echo "registry=$REGISTRY" >> "$GITHUB_OUTPUT"
           echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
+      - name: Build and push admin-web image
+        id: build-push-admin-web
+        working-directory: apps/admin-web
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            --build-arg "NEXT_PUBLIC_API_BASE_URL=$ADMIN_WEB_PUBLIC_API_BASE_URL" \
+            -t "$REGISTRY/$ECR_ADMIN_WEB_REPOSITORY:$IMAGE_TAG" \
+            -t "$REGISTRY/$ECR_ADMIN_WEB_REPOSITORY:latest" \
+            .
+          docker push "$REGISTRY/$ECR_ADMIN_WEB_REPOSITORY:$IMAGE_TAG"
+          docker push "$REGISTRY/$ECR_ADMIN_WEB_REPOSITORY:latest"
+
+      - name: Build and push marketing-site image
+        id: build-push-marketing-site
+        working-directory: apps/marketing-site
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -t "$REGISTRY/$ECR_MARKETING_SITE_REPOSITORY:$IMAGE_TAG" \
+            -t "$REGISTRY/$ECR_MARKETING_SITE_REPOSITORY:latest" \
+            .
+          docker push "$REGISTRY/$ECR_MARKETING_SITE_REPOSITORY:$IMAGE_TAG"
+          docker push "$REGISTRY/$ECR_MARKETING_SITE_REPOSITORY:latest"
+
       - name: Fetch pilot DB password from SSM
         id: db-password
         run: |
@@ -138,6 +184,8 @@ jobs:
           DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
           REDIS_URL=redis://redis:6379/0
           BACKEND_IMAGE=${REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+          ADMIN_WEB_IMAGE=${REGISTRY}/${ECR_ADMIN_WEB_REPOSITORY}:${IMAGE_TAG}
+          MARKETING_SITE_IMAGE=${REGISTRY}/${ECR_MARKETING_SITE_REPOSITORY}:${IMAGE_TAG}
           EOF
 
       - name: Upload deploy assets to S3

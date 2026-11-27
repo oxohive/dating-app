@@ -76,6 +76,38 @@ resource "aws_ecr_repository" "backend" {
   }
 }
 
+# --- Task 0013 additions: admin-web / marketing-site ECR repos ---
+#
+# Same pattern as aws_ecr_repository.backend above.
+
+resource "aws_ecr_repository" "admin_web" {
+  name                 = var.ecr_admin_web_repository_name
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    Name    = var.ecr_admin_web_repository_name
+    Purpose = "admin-web-container-images"
+  }
+}
+
+resource "aws_ecr_repository" "marketing_site" {
+  name                 = var.ecr_marketing_site_repository_name
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    Name    = var.ecr_marketing_site_repository_name
+    Purpose = "marketing-site-container-images"
+  }
+}
+
 module "iam" {
   source = "../../modules/iam"
 
@@ -521,4 +553,82 @@ resource "aws_eip" "pilot" {
     Name    = "dating-app-pilot-static-ip"
     Purpose = "stable-public-url-across-stop-start"
   }
+}
+
+# --- Task 0013 additions: deploy admin-web + marketing-site ---
+#
+# Additive only, same pattern as every prior task in this file: no edits to
+# existing resources or modules. Extends the already-scoped GHA deploy role
+# and EC2 instance role to also reach the two new ECR repos above, and opens
+# the one new ingress port admin-web needs.
+
+# 1. GitHub Actions deploy role: push/pull on the two new repos (mirrors
+#    module.iam's own "EcrPushPull" statement, scoped to
+#    aws_ecr_repository.backend.arn, which can't be extended in place
+#    without editing the module itself).
+data "aws_iam_policy_document" "gha_deploy_ecr_admin_web_marketing_site" {
+  statement {
+    sid = "EcrPushPullAdminWebMarketingSite"
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchGetImage",
+      "ecr:PutImage",
+      "ecr:InitiateLayerUpload",
+      "ecr:UploadLayerPart",
+      "ecr:CompleteLayerUpload",
+      "ecr:DescribeRepositories",
+      "ecr:ListImages",
+    ]
+    resources = [
+      aws_ecr_repository.admin_web.arn,
+      aws_ecr_repository.marketing_site.arn,
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "gha_deploy_ecr_admin_web_marketing_site" {
+  name   = "${module.iam.deploy_role_name}-ecr-admin-web-marketing-site"
+  role   = module.iam.deploy_role_name
+  policy = data.aws_iam_policy_document.gha_deploy_ecr_admin_web_marketing_site.json
+}
+
+# 2. EC2 instance role: pull-only on the two new repos (mirrors
+#    data.aws_iam_policy_document.app_instance_ecr_read's "EcrPullBackendRepo"
+#    statement above — ecr:GetAuthorizationToken is already granted
+#    account-wide by that same policy, no need to re-grant it).
+data "aws_iam_policy_document" "app_instance_ecr_read_admin_web_marketing_site" {
+  statement {
+    sid = "EcrPullAdminWebMarketingSiteRepos"
+    actions = [
+      "ecr:BatchGetImage",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchCheckLayerAvailability",
+    ]
+    resources = [
+      aws_ecr_repository.admin_web.arn,
+      aws_ecr_repository.marketing_site.arn,
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "app_instance_ecr_read_admin_web_marketing_site" {
+  name   = "${module.ec2_app.iam_role_name}-ecr-read-admin-web-marketing-site"
+  role   = module.ec2_app.iam_role_name
+  policy = data.aws_iam_policy_document.app_instance_ecr_read_admin_web_marketing_site.json
+}
+
+# 3. Security group: open admin-web's dedicated port (8081). The
+#    path-prefix nginx alternative would have needed no SG change at all;
+#    the distinct-port choice (see nginx.conf) needs exactly this one rule,
+#    added here rather than inside modules/ec2-app so that module's own
+#    inputs/outputs don't need to change for a pilot-env-specific choice.
+resource "aws_security_group_rule" "admin_web_http" {
+  type              = "ingress"
+  from_port         = 8081
+  to_port           = 8081
+  protocol          = "tcp"
+  cidr_blocks       = var.admin_web_ingress_cidr_blocks
+  security_group_id = module.ec2_app.security_group_id
+  description       = "admin-web (task 0013) - distinct port, avoids Next.js basePath complexity"
 }

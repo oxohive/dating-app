@@ -79,6 +79,23 @@ public IP dynamically — which is simply this Elastic IP now. Confirmed by
 terraform output `static_public_ip` and a live stop/start cycle during
 task 0011 (the address was unchanged before and after).
 
+**App URLs (task 0013):** alongside the backend API, the pilot instance
+now also serves two browser-viewable apps, both proxied through the same
+nginx container as the backend (see `infra/docker-compose/nginx.conf`):
+
+- **Marketing site:** `http://15.206.247.148/` — public, no login required.
+- **Admin web:** `http://15.206.247.148:8081/` — a distinct port rather
+  than a `/admin/` path prefix, to avoid Next.js basePath/asset-path
+  issues. Reachable from the public internet, but gated by its own
+  application-level login (`apps/admin-web/src/features/auth`) and, more
+  importantly, by the backend's `is_admin` check enforced server-side on
+  every `/admin/*` API call regardless of what the client sends.
+- The existing backend API is unaffected — still `http://15.206.247.148/`
+  under its existing path prefixes (`/health`, `/auth`, `/admin`, etc.).
+
+Both are produced by `terraform output marketing_site_url` /
+`terraform output admin_web_url` from `infra/terraform/envs/pilot`.
+
 **Rotating the secret:** the secret is a Terraform-managed `random_password`
 stored in the SSM parameter above.
 
