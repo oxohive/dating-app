@@ -274,6 +274,8 @@ jobs:
             "s3://$ARTIFACT_BUCKET/deploy/docker-compose.pilot.yml"
           aws s3 cp infra/docker-compose/nginx.conf \
             "s3://$ARTIFACT_BUCKET/deploy/nginx.conf"
+          aws s3 cp infra/docker-compose/nginx-backend-location.conf \
+            "s3://$ARTIFACT_BUCKET/deploy/nginx-backend-location.conf"
           aws s3 cp "$RUNNER_TEMP/.env.pilot" \
             "s3://$ARTIFACT_BUCKET/deploy/.env.pilot"
 
@@ -327,7 +329,9 @@ jobs:
               "mkdir -p /opt/dating-app",
               "aws s3 cp s3://'"$ARTIFACT_BUCKET"'/deploy/docker-compose.pilot.yml /opt/dating-app/docker-compose.pilot.yml",
               "aws s3 cp s3://'"$ARTIFACT_BUCKET"'/deploy/nginx.conf /opt/dating-app/nginx.conf",
+              "aws s3 cp s3://'"$ARTIFACT_BUCKET"'/deploy/nginx-backend-location.conf /opt/dating-app/nginx-backend-location.conf",
               "aws s3 cp s3://'"$ARTIFACT_BUCKET"'/deploy/.env.pilot /opt/dating-app/.env.pilot",
+              "mkdir -p /opt/dating-app/certbot-www",
               "cd /opt/dating-app",
               "aws ecr get-login-password --region '"$AWS_REGION"' | docker login --username AWS --password-stdin '"$REGISTRY"'",
               "docker compose -f docker-compose.pilot.yml --env-file .env.pilot pull",

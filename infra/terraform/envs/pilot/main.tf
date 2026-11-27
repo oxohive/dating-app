@@ -557,22 +557,33 @@ resource "aws_lambda_permission" "allow_public_invoke_function_env_wake" {
   principal     = "*"
 }
 
-# --- Task 0011 addition (REMOVED in task 0018) ---
+# --- Task 0011 addition (REMOVED in task 0018, RE-ADDED in task 0020) ---
 #
 # Task 0011 added a static Elastic IP (`aws_eip.pilot`) here to give the
 # pilot a stable public URL across stop/start cycles, at a small ongoing
-# idle-time AWS cost. Task 0018 removes it: the mobile app now does its
-# own dynamic wake-and-discover against the env-wake Lambda (which has
-# always looked up the instance's *current* public IP dynamically, EIP or
-# not — see lambda/env-wake/handler.py), so nothing actually depends on
-# the IP being static anymore. The instance's public IP (`aws_instance.app.
-# public_ip`, exposed as `module.ec2_app.public_ip`) is once again AWS's
-# standard ephemeral address: it changes on every stop/start, same as
-# before task 0011. See docs/runbooks/env-start-stop.md for the resulting
-# "the wake Lambda URL is the only thing that doesn't change" guidance,
-# and tasks/0018-mobile-dynamic-wake-discovery/plan.md for the full
-# rationale and rollback path (re-add this resource to restore a static
-# IP).
+# idle-time AWS cost. Task 0018 removed it, since the mobile app's own
+# dynamic wake-and-discover against the env-wake Lambda no longer needed a
+# fixed address. Task 0020 re-adds it: a real Let's Encrypt TLS
+# certificate (needed because admin-web is now on Vercel/HTTPS-only and
+# browsers block it calling a plain-HTTP backend as mixed content) can
+# only be issued for a stable domain name, which in turn needs a stable
+# IP to resolve to. Associating it directly via the `instance` attribute
+# (rather than a separate aws_eip_association resource) re-associates the
+# address on the already-running instance in place — it does not replace
+# or restart aws_instance.app. See tasks/0020-backend-https-domain/plan.md
+# and docs/runbooks/env-start-stop.md for the full rationale; the mobile
+# app's dynamic wake-discovery flow from task 0018 is left as-is and
+# still works unchanged (it doesn't depend on the IP being static either
+# way).
+resource "aws_eip" "pilot" {
+  domain   = "vpc"
+  instance = module.ec2_app.instance_id
+
+  tags = {
+    Name    = "dating-app-pilot-static-ip"
+    Purpose = "stable-public-url-for-https-cert"
+  }
+}
 
 # --- Task 0013 additions: deploy admin-web + marketing-site ---
 #

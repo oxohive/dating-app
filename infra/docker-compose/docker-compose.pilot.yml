@@ -106,9 +106,17 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
       - "8081:8081"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Task 0020: shared backend-routing snippet (see nginx.conf), the
+      # ACME HTTP-01 webroot certbot writes challenge files into, and the
+      # host's certbot cert store (ro — nginx only ever reads certs here;
+      # certbot itself runs directly on the host, not in a container).
+      - ./nginx-backend-location.conf:/etc/nginx/conf.d/includes/backend-location.conf:ro
+      - ./certbot-www:/var/www/certbot:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - backend
       - admin-web

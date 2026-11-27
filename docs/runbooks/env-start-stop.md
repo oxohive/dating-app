@@ -82,38 +82,77 @@ contract. The mobile app polls this on startup (and after a mid-session
 connection failure) and retries every `retry_after_seconds` until
 `"running"`.
 
-**No more static public IP (task 0011 removed in task 0018):** task 0011
-added a static AWS Elastic IP (`aws_eip.pilot`) so the pilot had one
-address that never changed across stop/start. Task 0018 removed it: the
-mobile app now does its own dynamic wake-and-discover via the JSON mode
-above instead of relying on a fixed address, so the small ongoing
-idle-time EIP cost is no longer worth paying.
+**Static public IP is back (task 0011, removed in task 0018, re-added in
+task 0020):** task 0011 added a static AWS Elastic IP (`aws_eip.pilot`) so
+the pilot had one address that never changed across stop/start. Task 0018
+removed it, since the mobile app's own dynamic wake-and-discover via the
+JSON mode above no longer needed a fixed address. **Task 0020 re-adds it**
+(current value: `15.207.91.114` — re-run `terraform output
+static_public_ip` from `infra/terraform/envs/pilot` rather than trusting
+this written-down value, in case it's ever replaced) for a different
+reason: a real Let's Encrypt TLS certificate can only be issued for a
+domain name that resolves consistently, which in turn needs a stable IP
+to resolve *to*. admin-web is now hosted on Vercel (HTTPS-only), and
+browsers block it calling a plain-HTTP backend as mixed content — see
+"HTTPS backend domain (task 0020)" below. The small ongoing idle-time EIP
+cost (~$1-4/month) that task 0018 avoided is accepted again here, since a
+browser-based client (admin-web, and potentially marketing-site later)
+is a second real consumer that genuinely needs it.
 
-**Practical consequence: the instance's own public IP can change on every
-stop/start again**, exactly like before task 0011 — AWS assigns a fresh
-ephemeral address each time the instance (re)starts, and releases it on
-stop. There is **no stable bare-IP URL for the pilot instance anymore**.
-Concretely:
+The mobile app's dynamic wake-and-discover flow (task 0018) is **unaffected
+and needs no changes**: `lambda/env-wake/handler.py` always looked up the
+instance's *current* public IP dynamically regardless of whether that IP
+came from an EIP or AWS's ephemeral pool — it just happens to return the
+same address every time now instead of a fresh one per stop/start.
 
-- **The env-wake Lambda Function URL is now the only address that stays
-  constant.** `terraform output -raw env_wake_function_url` never changes
-  across stop/start cycles — bookmark/use *that* (with `?secret=...`), not
-  a raw IP.
-- **Any bare-IP bookmark you've saved (`http://<old-ip>/`,
-  `http://<old-ip>:8081/`, etc.) will go stale** the next time the
-  instance stops and starts, whether that's a scheduled stop, the idle
-  auto-stop alarm, or a manual override below. Re-resolve the current
-  address via the wake Lambda (browser mode redirects you to it; JSON mode
-  returns it as `base_url`) rather than reusing an old bookmark.
-- `terraform output instance_public_ip` / `marketing_site_url` /
-  `admin_web_url` from `infra/terraform/envs/pilot` still work, but only
-  reflect whatever the instance's IP happens to be *at the moment you run
-  that command* — re-run them after any stop/start rather than trusting a
-  previously-noted value.
-- The mobile app no longer needs any of this — it discovers the current
-  address itself via the Lambda's JSON mode on every app launch/foreground
-  and after any mid-session connection failure (see
-  `tasks/0018-mobile-dynamic-wake-discovery/plan.md`).
+**Practical consequence:** the instance's public IP is once again stable
+across stop/start (barring the EIP itself ever being released/replaced).
+`terraform output instance_public_ip` / `static_public_ip` /
+`marketing_site_url` / `admin_web_url` from `infra/terraform/envs/pilot`
+now reflect the same value every time, but re-running them after a
+`terraform apply` that touches the EIP is still the authoritative way to
+get the current value rather than trusting a previously-noted one. The
+env-wake Lambda Function URL remains the one address that was never
+affected either way by any of this — see above.
+
+## HTTPS backend domain (task 0020)
+
+The backend is reachable over HTTPS at **`https://api.oxo-date.dev.oxohive.com`**,
+a Porkbun DNS A record pointing at the static Elastic IP above, with a
+real Let's Encrypt certificate terminated by the `nginx` container (see
+`infra/docker-compose/nginx.conf`'s port-443 server block). This exists
+specifically so admin-web (hosted on Vercel, HTTPS-only) can call the
+backend without the browser blocking it as mixed content — calling the
+bare IP over plain HTTP from an HTTPS page is exactly what was broken
+before this task. admin-web's `NEXT_PUBLIC_API_BASE_URL` Vercel env var
+now points at this domain instead of the old bare IP.
+
+- **Certificate:** obtained via `certbot certonly --webroot`, run directly
+  on the EC2 host (not inside a container) against a webroot directory
+  (`/opt/dating-app/certbot-www`) shared with the `nginx` container via a
+  volume mount, so the ACME HTTP-01 challenge is served on plain port 80
+  through nginx's `/.well-known/acme-challenge/` location without needing
+  to stop nginx or free up the port. Certs live under the host's
+  `/etc/letsencrypt/`, mounted read-only into the `nginx` container.
+- **Renewal:** certbot's own `certbot.timer` systemd unit (installed
+  automatically with the package, confirmed `enabled`/`active`) runs
+  twice daily and renews automatically when a cert is near expiry — no
+  cron job was hand-rolled. A deploy-hook
+  (`/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh`) reloads the
+  `nginx` container (`docker compose exec nginx nginx -s reload`) after
+  every successful renewal so the new cert actually takes effect without
+  needing a manual restart. Verified with `certbot renew --dry-run`.
+- **No HTTP→HTTPS redirect was added.** Port 80 still serves plain HTTP
+  unchanged, alongside the new port 443. This was a deliberate choice,
+  not an oversight: `lambda/env-wake/handler.py`'s JSON mode (what the
+  mobile app's wake-discovery flow uses — see task 0018) still constructs
+  and returns a bare `http://<ip>` URL, and a hard redirect would have
+  broken every subsequent request the mobile app makes against it. If
+  mobile is ever updated to use the HTTPS domain too, revisit adding a
+  redirect at that point.
+- **Shared routing, not duplicated:** both the port-80 and port-443 server
+  blocks `include` the same `nginx-backend-location.conf` snippet for the
+  backend's path-prefix routing, so the two can't drift apart.
 
 **App URLs (task 0013):** alongside the backend API, the pilot instance
 also serves two browser-viewable apps, both proxied through the same
@@ -130,16 +169,21 @@ nginx container as the backend (see `infra/docker-compose/nginx.conf`):
   (`/health`, `/auth`, `/admin`, etc.) on the same host.
 
 Both are produced by `terraform output marketing_site_url` /
-`terraform output admin_web_url` from `infra/terraform/envs/pilot` — as of
-task 0018, these reflect the instance's **current** (no-longer-static) IP
-at the moment you run them, not a fixed address; re-run them after any
-stop/start rather than reusing a previously-noted value. (The
-`admin-web`-side `ADMIN_WEB_PUBLIC_API_BASE_URL` baked in at deploy time
-by `.github/workflows/deploy.yml` still hardcodes the old static IP as of
-this writing — that value will go stale the next time the instance
-stops/starts and is **not** fixed by this task; see task 0018's status/
-report for details, it's a follow-up for whoever owns admin-web's deploy
-config.)
+`terraform output admin_web_url` from `infra/terraform/envs/pilot` and,
+since task 0020 re-added the static Elastic IP, are stable again (no
+need to re-run them after every stop/start, though re-running is still
+the authoritative source of truth). Note this `admin-web` on port `8081`
+is the EC2/docker-compose-hosted copy from task 0013, distinct from the
+**Vercel-hosted admin-web** that task 0020 actually points at the new
+`https://api.oxo-date.dev.oxohive.com` domain (its `NEXT_PUBLIC_API_BASE_URL`
+env var on the Vercel project) — the two are deployed independently.
+The EC2 copy's own `ADMIN_WEB_PUBLIC_API_BASE_URL` build-arg (set in
+`.github/workflows/deploy.yml`) still hardcodes an old bare IP
+(`http://15.206.247.148`, pre-dating even task 0018's EIP removal) that
+was never kept in sync with the EIP's actual value across tasks — not
+touched by task 0020 either, since that EC2 copy isn't the one admin-web
+traffic is understood to use; flag this as a follow-up if the EC2-hosted
+copy is still actually relied on by anyone.
 
 **Rotating the secret:** the secret is a Terraform-managed `random_password`
 stored in the SSM parameter above.

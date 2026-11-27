@@ -4,8 +4,13 @@ output "instance_id" {
 }
 
 output "instance_public_ip" {
-  description = "Pilot instance's current public IP. Task 0011 added a static Elastic IP here (removed in task 0018); this is once again AWS's standard ephemeral address, which changes on every stop/start. The env-wake Lambda Function URL (see env_wake_function_url) is the only address that stays stable across stop/start cycles — use it instead of bookmarking this value."
+  description = "Pilot instance's current public IP (AWS's dynamic address on the ENI itself). Task 0011 added a static Elastic IP (removed in task 0018, re-added in task 0020 — see static_public_ip below); that EIP is now the stable address to use, not this one."
   value       = module.ec2_app.public_ip
+}
+
+output "static_public_ip" {
+  description = "Static Elastic IP associated with the pilot instance (task 0011, re-added in task 0020 to support a real TLS certificate for api.oxo-date.dev.oxohive.com). Unlike instance_public_ip, this does not change across stop/start."
+  value       = aws_eip.pilot.public_ip
 }
 
 output "media_bucket_id" {
