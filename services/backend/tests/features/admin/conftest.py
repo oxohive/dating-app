@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Generator
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -23,7 +25,30 @@ from packages.api.features.auth.dependencies import get_current_user
 from packages.api.features.auth.models import User
 from packages.api.features.profiles.models import Profile
 from packages.api.features.safety.models import Report  # noqa: F401
+from packages.api.features.subscriptions.models import Payment, Subscription  # noqa: F401
+from packages.api.features.verification.models import STATUS_PENDING, Verification  # noqa: F401
 from packages.api.main import app
+
+
+class FakeS3Client:
+    """Minimal stand-in for the boto3 S3 client's `generate_presigned_url`
+    (the review-queue's `GET /admin/verifications` resolves each
+    selfie's `s3_key` to a viewable URL via this)."""
+
+    def generate_presigned_url(
+        self, _operation_name: str, Params: dict[str, Any], ExpiresIn: int  # noqa: N803
+    ) -> str:
+        bucket = Params["Bucket"]
+        key = Params["Key"]
+        return f"https://{bucket}.s3.amazonaws.com/{key}?expires_in={ExpiresIn}"
+
+
+@pytest.fixture(autouse=True)
+def _patch_s3(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "packages.api.features.verification.selfie_service.get_s3_client",
+        lambda: FakeS3Client(),
+    )
 
 
 @pytest.fixture
@@ -120,3 +145,67 @@ def make_user_and_profile(
     db.add(profile)
     db.commit()
     return user, profile
+
+
+def make_verification(
+    db: DbSession,
+    *,
+    profile_id: uuid.UUID,
+    status: str = STATUS_PENDING,
+    selfie_s3_key: str | None = "verifications/some-profile/selfie.jpg",
+) -> Verification:
+    verification = Verification(
+        profile_id=profile_id,
+        status=status,
+        selfie_s3_key=selfie_s3_key,
+    )
+    db.add(verification)
+    db.commit()
+    return verification
+
+
+def make_subscription(
+    db: DbSession,
+    *,
+    user_id: uuid.UUID,
+    plan: str = "monthly",
+    status: str = "active",
+    started_at: datetime | None = None,
+    expires_at: datetime | None = None,
+) -> Subscription:
+    now = datetime.now(UTC)
+    subscription = Subscription(
+        user_id=user_id,
+        plan=plan,
+        status=status,
+        started_at=started_at or now,
+        expires_at=expires_at or (now + timedelta(days=30)),
+    )
+    db.add(subscription)
+    db.commit()
+    return subscription
+
+
+def make_payment(
+    db: DbSession,
+    *,
+    user_id: uuid.UUID,
+    subscription_id: uuid.UUID | None = None,
+    provider: str = "razorpay",
+    provider_payment_id: str | None = None,
+    amount_minor_units: int = 29_900,
+    currency: str = "INR",
+    status: str = "succeeded",
+) -> Payment:
+    payment = Payment(
+        user_id=user_id,
+        subscription_id=subscription_id,
+        provider=provider,
+        provider_payment_id=provider_payment_id or f"pay_test_{uuid.uuid4().hex[:10]}",
+        amount_minor_units=amount_minor_units,
+        currency=currency,
+        status=status,
+    )
+    db.add(payment)
+    db.commit()
+    return payment

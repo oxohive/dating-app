@@ -8,6 +8,12 @@ import { LikesScreen } from '../../features/likes/screens/LikesScreen';
 import { MatchesScreen } from '../../features/matches/screens/MatchesScreen';
 import { OnboardingScreen } from '../../features/onboarding/screens/OnboardingScreen';
 import { ProfileScreen } from '../../features/profile/screens/ProfileScreen';
+import type { SubscriptionPlanId } from '../../features/subscriptions/api/subscriptions.api';
+import { CheckoutScreen } from '../../features/subscriptions/screens/CheckoutScreen';
+import { PlansScreen } from '../../features/subscriptions/screens/PlansScreen';
+import { SubscriptionStatusScreen } from '../../features/subscriptions/screens/SubscriptionStatusScreen';
+import { SelfieCaptureScreen } from '../../features/verification/screens/SelfieCaptureScreen';
+import { VerificationStatusScreen } from '../../features/verification/screens/VerificationStatusScreen';
 
 /**
  * Every route the app can navigate to, with its params. This is the
@@ -23,6 +29,11 @@ export type RootStackParamList = {
   Matches: undefined;
   Inbox: undefined;
   Conversation: { conversationId: string };
+  Plans: undefined;
+  Checkout: { plan: SubscriptionPlanId };
+  SubscriptionStatus: undefined;
+  SelfieCapture: undefined;
+  VerificationStatus: undefined;
 };
 
 export type RootNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -46,6 +57,11 @@ export function RootNavigator() {
       <Stack.Screen component={MatchesScreen} name="Matches" />
       <Stack.Screen component={InboxScreen} name="Inbox" />
       <Stack.Screen component={ConversationScreen} name="Conversation" />
+      <Stack.Screen component={PlansScreen} name="Plans" />
+      <Stack.Screen component={CheckoutScreen} name="Checkout" />
+      <Stack.Screen component={SubscriptionStatusScreen} name="SubscriptionStatus" />
+      <Stack.Screen component={SelfieCaptureScreen} name="SelfieCapture" />
+      <Stack.Screen component={VerificationStatusScreen} name="VerificationStatus" />
     </Stack.Navigator>
   );
 }

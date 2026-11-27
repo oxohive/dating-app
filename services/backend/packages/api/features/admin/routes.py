@@ -19,8 +19,17 @@ from sqlalchemy.orm import Session
 from packages.api.core.database import get_db
 from packages.api.features.admin import admin_service, validation
 from packages.api.features.admin.dependencies import require_admin
-from packages.api.features.admin.schemas import ReportAdminOut, ResolveReportRequest, UserAdminOut
+from packages.api.features.admin.schemas import (
+    PaymentAdminOut,
+    ReportAdminOut,
+    ResolveReportRequest,
+    SubscriptionAdminOut,
+    UserAdminOut,
+    VerificationAdminOut,
+    VerificationReviewRequest,
+)
 from packages.api.features.auth.models import User
+from packages.api.features.verification.selfie_service import build_selfie_url
 
 router = APIRouter()
 
@@ -80,3 +89,88 @@ def resolve_report(
     """Resolve a report with a free-text moderator `action`."""
     report = admin_service.resolve_report(db, report_id, body.action)
     return ReportAdminOut.model_validate(report)
+
+
+def _to_verification_admin_out(verification, profile) -> VerificationAdminOut:
+    return VerificationAdminOut(
+        id=verification.id,
+        profile_id=verification.profile_id,
+        display_name=profile.display_name,
+        status=verification.status,
+        selfie_url=build_selfie_url(verification.selfie_s3_key)
+        if verification.selfie_s3_key
+        else None,
+        created_at=verification.created_at,
+        reviewed_by_user_id=verification.reviewed_by_user_id,
+        reviewed_at=verification.reviewed_at,
+    )
+
+
+@router.get("/verifications", response_model=list[VerificationAdminOut])
+def get_verifications(
+    db: DbSession,
+    _admin: AdminUser,
+    status_filter: Annotated[str, Query(alias="status")] = "pending",
+) -> list[VerificationAdminOut]:
+    """List profile-verification submissions, filtered by status (default
+    "pending", preserving the exact observable behavior of the original
+    `/verifications/pending` endpoint this generalizes). `?status=all`
+    returns every submission regardless of status, for a review-history
+    view.
+
+    `selfie_url` is a resolved, directly-viewable presigned URL -- built via
+    `verification.selfie_service.build_selfie_url`, the same URL-resolution
+    helper pattern as `profiles.photo_service.build_photo_url`.
+    """
+    cleaned_status = validation.validate_verification_status(status_filter)
+    rows = admin_service.list_verifications(db, cleaned_status)
+    return [_to_verification_admin_out(verification, profile) for verification, profile in rows]
+
+
+@router.post("/verifications/{verification_id}/review", response_model=VerificationAdminOut)
+def review_verification(
+    verification_id: uuid.UUID,
+    body: VerificationReviewRequest,
+    db: DbSession,
+    admin: AdminUser,
+) -> VerificationAdminOut:
+    """Approve or reject a verification.
+
+    `reviewed_by_user_id`/`reviewed_at` are always set server-side from the
+    acting admin's authenticated identity -- never accepted from the
+    request body, so the submitting user cannot set either directly.
+    """
+    verification, profile = admin_service.review_verification(
+        db, verification_id, body.decision, admin
+    )
+    return _to_verification_admin_out(verification, profile)
+
+
+@router.get("/subscriptions", response_model=list[SubscriptionAdminOut])
+def get_subscriptions(
+    db: DbSession,
+    _admin: AdminUser,
+    status_filter: Annotated[str, Query(alias="status")] = "all",
+) -> list[SubscriptionAdminOut]:
+    """List subscriptions for admin monitoring, filtered by status (default
+    "all"). Read-only -- `admin` never mutates `Subscription` rows, only
+    lists them (imported from `subscriptions.models`, owned by B4).
+    """
+    cleaned_status = validation.validate_subscription_status(status_filter)
+    subscriptions = admin_service.list_subscriptions(db, cleaned_status)
+    return [SubscriptionAdminOut.model_validate(subscription) for subscription in subscriptions]
+
+
+@router.get("/payments", response_model=list[PaymentAdminOut])
+def get_payments(
+    db: DbSession,
+    _admin: AdminUser,
+    status_filter: Annotated[str, Query(alias="status")] = "all",
+) -> list[PaymentAdminOut]:
+    """List payments for admin monitoring, filtered by status (default
+    "all"). Read-only -- `admin` never mutates `Payment` rows, only lists
+    them (imported from `subscriptions.models`, owned by B4).
+    """
+    cleaned_status = validation.validate_payment_status(status_filter)
+    payments = admin_service.list_payments(db, cleaned_status)
+    return [PaymentAdminOut.model_validate(payment) for payment in payments]

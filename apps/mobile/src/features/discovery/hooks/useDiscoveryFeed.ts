@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { submitLike } from '../../likes/api/likes.api';
+import { useIsPremium } from '../../subscriptions/hooks/useIsPremium';
 import { fetchDiscoveryFeed, passProfile, type DiscoveryProfile } from '../api/discovery.api';
+import { resolveEffectiveRadius } from '../radius';
+import { useDiscoveryPreferencesStore } from '../store/discoveryPreferencesStore';
 import type { SwipeDirection } from '../components/SwipeDeck';
 
 export type MatchCelebrationState = {
@@ -27,11 +30,14 @@ export function useDiscoveryFeed() {
   const [swipedIds, setSwipedIds] = useState<string[]>([]);
   const [match, setMatch] = useState<MatchCelebrationState | null>(null);
   const [quotaExceeded, setQuotaExceeded] = useState(false);
+  const { isPremium } = useIsPremium();
+  const selectedRadius = useDiscoveryPreferencesStore((state) => state.radius);
+  const effectiveRadius = resolveEffectiveRadius(isPremium, selectedRadius);
 
   const pageQueries = useQueries({
     queries: offsets.map((offset) => ({
-      queryKey: ['discovery', 'feed', offset] as const,
-      queryFn: () => fetchDiscoveryFeed(offset),
+      queryKey: ['discovery', 'feed', offset, effectiveRadius] as const,
+      queryFn: () => fetchDiscoveryFeed(offset, undefined, effectiveRadius),
     })),
   });
 

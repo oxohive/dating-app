@@ -3,6 +3,7 @@ import { Avatar } from '../../../components/Avatar';
 import { Card } from '../../../components/Card';
 import { colors, spacing, typography } from '../../../core/theme';
 import type { DiscoveryProfile } from '../api/discovery.api';
+import { DistanceBadge } from './DistanceBadge';
 
 export type SwipeCardProps = {
   candidate: DiscoveryProfile;
@@ -10,7 +11,9 @@ export type SwipeCardProps = {
 
 /**
  * Single candidate card shown at the top of the swipe deck. Purely
- * presentational — swipe gestures live in SwipeDeck.
+ * presentational — swipe gestures live in SwipeDeck. Shows only the
+ * backend's distance band (never a precise/computed distance) when one
+ * is present on the candidate.
  */
 export function SwipeCard({ candidate }: SwipeCardProps) {
   return (
@@ -21,6 +24,7 @@ export function SwipeCard({ candidate }: SwipeCardProps) {
           {candidate.display_name}, {candidate.age}
         </Text>
         {candidate.bio ? <Text style={styles.bio}>{candidate.bio}</Text> : null}
+        {candidate.distance_band ? <DistanceBadge band={candidate.distance_band} /> : null}
       </View>
     </Card>
   );

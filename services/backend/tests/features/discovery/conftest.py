@@ -33,8 +33,17 @@ from packages.api.features.auth.models import User
 # Base.metadata before create_all runs below.
 from packages.api.features.discovery.models import Pass  # noqa: F401
 from packages.api.features.likes.models import Like  # noqa: F401
+
+# `location` (UserLocation) and `subscriptions` (Subscription/Payment) are
+# other subtasks' tables this feature's GPS-discovery/premium-gating code
+# queries (see discovery_service.get_nearby_feed and
+# routes.has_active_premium) -- imported here, same reason as every other
+# model import in this file, so SQLite's create_all below actually
+# creates those tables too.
+from packages.api.features.location.models import UserLocation  # noqa: F401
 from packages.api.features.matches.models import Match  # noqa: F401
 from packages.api.features.profiles.models import Profile
+from packages.api.features.subscriptions.models import Payment, Subscription  # noqa: F401
 from packages.api.main import app
 
 
@@ -135,5 +144,45 @@ def make_profile(db: DbSession):
 
     def _factory(**kwargs) -> Profile:
         return make_user_and_profile(db, **kwargs)
+
+    return _factory
+
+
+@pytest.fixture
+def make_premium(db: DbSession):
+    """Returns a `make_premium(profile)` helper that gives `profile`'s
+    owning user an active, unexpired `Subscription` row -- the same
+    condition `subscriptions_service.has_active_premium` checks."""
+    import datetime as _dt
+
+    def _factory(profile: Profile) -> Subscription:
+        subscription = Subscription(
+            user_id=profile.user_id,
+            plan="monthly",
+            status="active",
+            started_at=_dt.datetime.now(_dt.UTC),
+            expires_at=_dt.datetime.now(_dt.UTC) + _dt.timedelta(days=30),
+        )
+        db.add(subscription)
+        db.commit()
+        return subscription
+
+    return _factory
+
+
+@pytest.fixture
+def make_location(db: DbSession):
+    """Returns a `make_location(profile, latitude, longitude)` helper that
+    writes a `UserLocation` row directly (bypassing the Premium-gated
+    route -- these tests exercise discovery's own GPS feed/compatibility
+    logic, not the location feature's write path)."""
+
+    def _factory(profile: Profile, latitude: float, longitude: float) -> UserLocation:
+        location = UserLocation(
+            profile_id=profile.id, latitude=latitude, longitude=longitude
+        )
+        db.add(location)
+        db.commit()
+        return location
 
     return _factory

@@ -24,6 +24,8 @@ from packages.api.features.messaging.routes import router as messaging_router
 from packages.api.features.onboarding.routes import router as onboarding_router
 from packages.api.features.profiles.routes import router as profiles_router
 from packages.api.features.safety.routes import router as safety_router
+from packages.api.features.subscriptions.routes import router as subscriptions_router
+from packages.api.features.verification.routes import router as verification_router
 
 configure_logging()
 configure_tracing()
@@ -46,6 +48,8 @@ app.include_router(likes_router, prefix="/likes", tags=["likes"])
 app.include_router(matches_router, prefix="/matches", tags=["matches"])
 app.include_router(messaging_router, prefix="", tags=["messaging"])
 app.include_router(safety_router, prefix="", tags=["safety"])
+app.include_router(subscriptions_router, prefix="/subscriptions", tags=["subscriptions"])
+app.include_router(verification_router, prefix="/verification", tags=["verification"])
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
 
 # NOTE: features/notifications has no routes.py by design (per spec) — it is

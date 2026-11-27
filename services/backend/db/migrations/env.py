@@ -17,16 +17,25 @@ from packages.api.core.config import get_settings
 from packages.api.core.database import Base
 
 # Import every feature's model modules here so they register their tables
-# on Base.metadata before autogenerate runs. `onboarding` and `location`
-# intentionally define no ORM classes this wave (see their own models.py
-# docstrings) so they're omitted below -- there is nothing to import.
+# on Base.metadata before autogenerate runs. `onboarding` intentionally
+# defines no ORM classes (see its own models.py docstring) so it's omitted
+# below -- there is nothing to import. `location`, `subscriptions`, and
+# `verification` USED to be in that same "no ORM classes" camp as of
+# task 0008, but task 0010 (Wave 2) added `UserLocation`, `Subscription`/
+# `Payment`, and `Verification` respectively -- all three are imported here
+# now so autogenerate actually sees their tables (see
+# tasks/0010-wave2-deferred-features/plan.md's validator finding #5 for the
+# failure mode this avoids: a silently-incomplete migration).
 from packages.api.features.auth import models as auth_models  # noqa: E402,F401
 from packages.api.features.discovery import models as discovery_models  # noqa: E402,F401
 from packages.api.features.likes import models as likes_models  # noqa: E402,F401
+from packages.api.features.location import models as location_models  # noqa: E402,F401
 from packages.api.features.matches import models as matches_models  # noqa: E402,F401
 from packages.api.features.messaging import models as messaging_models  # noqa: E402,F401
 from packages.api.features.profiles import models as profiles_models  # noqa: E402,F401
 from packages.api.features.safety import models as safety_models  # noqa: E402,F401
+from packages.api.features.subscriptions import models as subscriptions_models  # noqa: E402,F401
+from packages.api.features.verification import models as verification_models  # noqa: E402,F401
 
 config = context.config
 
