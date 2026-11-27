@@ -20,17 +20,17 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
       getRowKey={(entry) => entry.id}
       emptyMessage="No admin actions have been recorded yet."
       columns={[
-        { key: "action", header: "Action", render: (entry) => entry.action },
+        { key: "action", header: "Action", render: (entry) => <span className="font-medium text-slate-800">{entry.action}</span> },
         {
           key: "target",
           header: "Target",
-          render: (entry) => `${entry.targetType}:${entry.targetId}`,
+          render: (entry) => <span className="text-slate-600">{`${entry.targetType}:${entry.targetId}`}</span>,
         },
-        { key: "admin", header: "Admin", render: (entry) => entry.adminUserId },
+        { key: "admin", header: "Admin", render: (entry) => <span className="text-slate-600">{entry.adminUserId}</span> },
         {
           key: "createdAt",
           header: "Created at",
-          render: (entry) => new Date(entry.createdAt).toLocaleString(),
+          render: (entry) => <span className="text-slate-500">{new Date(entry.createdAt).toLocaleString()}</span>,
         },
       ]}
     />

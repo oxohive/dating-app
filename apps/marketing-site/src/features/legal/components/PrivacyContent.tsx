@@ -89,14 +89,18 @@ const SECTIONS: PrivacySection[] = [
  */
 export function PrivacyContent() {
   return (
-    <section style={{ padding: "48px 24px", maxWidth: 720 }}>
+    <section className="mx-auto max-w-3xl px-6 py-16 sm:py-20">
       <DraftNotice documentLabel="privacy policy" />
-      {SECTIONS.map((section) => (
-        <div key={section.heading} style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: 18, marginBottom: 8 }}>{section.heading}</h2>
-          <p style={{ color: "#374151", lineHeight: 1.6 }}>{section.body}</p>
-        </div>
-      ))}
+      <div className="space-y-6">
+        {SECTIONS.map((section) => (
+          <div key={section.heading} className="border-b border-neutral-200 pb-6 last:border-0">
+            <h2 className="font-display text-lg font-semibold text-neutral-900">
+              {section.heading}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-neutral-600">{section.body}</p>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

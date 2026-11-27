@@ -8,10 +8,15 @@ export interface ButtonProps {
   disabled?: boolean;
 }
 
-const VARIANT_STYLES: Record<ButtonVariant, React.CSSProperties> = {
-  primary: { background: "#2563eb", color: "#fff" },
-  secondary: { background: "#e5e7eb", color: "#111827" },
-  danger: { background: "#dc2626", color: "#fff" },
+// Clear visual hierarchy: primary (solid brand) for the main action,
+// secondary (quiet outline) for low-stakes actions like "cancel", and
+// danger (solid red, slightly heavier shadow) for destructive actions like
+// refund/suspend so they visibly read as consequential.
+const VARIANT_STYLES: Record<ButtonVariant, string> = {
+  primary: "bg-primary-600 text-white hover:bg-primary-700 focus-visible:ring-primary-400 shadow-sm",
+  secondary:
+    "bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 focus-visible:ring-slate-300",
+  danger: "bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-rose-400 shadow-sm",
 };
 
 /**
@@ -29,14 +34,12 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      style={{
-        padding: "8px 14px",
-        borderRadius: 6,
-        border: "none",
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.6 : 1,
-        ...VARIANT_STYLES[variant],
-      }}
+      className={[
+        "inline-flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
+        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+        VARIANT_STYLES[variant],
+      ].join(" ")}
     >
       {children}
     </button>

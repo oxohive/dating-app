@@ -1,5 +1,6 @@
 "use client";
 
+import { CreditCard } from "lucide-react";
 import { StatusFilter } from "@/components/StatusFilter";
 import { RequireAdminAuth } from "@/features/auth/components/RequireAdminAuth";
 import { SubscriptionTable } from "@/features/payments/components/SubscriptionTable";
@@ -36,27 +37,30 @@ export default function PaymentsPage() {
 
   return (
     <RequireAdminAuth>
-      <h1>Subscriptions & Payments</h1>
+      <h1 className="mb-6 flex items-center gap-2 text-2xl font-semibold text-slate-900">
+        <CreditCard size={22} className="text-primary-600" />
+        Subscriptions &amp; Payments
+      </h1>
 
-      <section style={{ marginBottom: 32 }}>
-        <h2>Subscriptions</h2>
+      <section className="mb-10 rounded-lg border border-slate-200 bg-white p-5 shadow-card">
+        <h2 className="mb-3 text-base font-semibold text-slate-900">Subscriptions</h2>
         <StatusFilter
           value={subscriptionsState.statusFilter}
           options={SUBSCRIPTION_STATUS_OPTIONS}
           onChange={subscriptionsState.setStatusFilter}
         />
-        {subscriptionsState.error && <p style={{ color: "#dc2626" }}>{subscriptionsState.error}</p>}
+        {subscriptionsState.error && <p className="mb-3 text-sm font-medium text-rose-600">{subscriptionsState.error}</p>}
         <SubscriptionTable subscriptions={subscriptionsState.subscriptions} />
       </section>
 
-      <section>
-        <h2>Payments</h2>
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-card">
+        <h2 className="mb-3 text-base font-semibold text-slate-900">Payments</h2>
         <StatusFilter
           value={paymentsState.statusFilter}
           options={PAYMENT_STATUS_OPTIONS}
           onChange={paymentsState.setStatusFilter}
         />
-        {paymentsState.error && <p style={{ color: "#dc2626" }}>{paymentsState.error}</p>}
+        {paymentsState.error && <p className="mb-3 text-sm font-medium text-rose-600">{paymentsState.error}</p>}
         <PaymentTable payments={paymentsState.payments} onRefund={paymentsState.refund} />
       </section>
     </RequireAdminAuth>

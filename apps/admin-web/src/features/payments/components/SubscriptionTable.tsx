@@ -25,7 +25,7 @@ export function SubscriptionTable({ subscriptions }: SubscriptionTableProps) {
       emptyMessage="No subscriptions match this filter."
       columns={[
         { key: "user", header: "User", render: (subscription) => subscription.userId },
-        { key: "plan", header: "Plan", render: (subscription) => subscription.plan },
+        { key: "plan", header: "Plan", render: (subscription) => <span className="font-medium text-slate-800">{subscription.plan}</span> },
         {
           key: "status",
           header: "Status",
@@ -34,7 +34,7 @@ export function SubscriptionTable({ subscriptions }: SubscriptionTableProps) {
         {
           key: "expiresAt",
           header: "Expires at",
-          render: (subscription) => new Date(subscription.expiresAt).toLocaleString(),
+          render: (subscription) => <span className="text-slate-500">{new Date(subscription.expiresAt).toLocaleString()}</span>,
         },
       ]}
     />

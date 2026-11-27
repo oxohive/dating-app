@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Users as UsersIcon } from "lucide-react";
 import { UserSearchBar } from "@/features/users/components/UserSearchBar";
 import { UserTable } from "@/features/users/components/UserTable";
 import { UserDetailPanel } from "@/features/users/components/UserDetailPanel";
@@ -28,17 +29,20 @@ export default function UsersPage() {
 
   return (
     <RequireAdminAuth>
-      <div style={{ display: "flex", gap: 24 }}>
-        <div style={{ flex: 1 }}>
-          <h1>Users</h1>
+      <div className="flex gap-6">
+        <div className="min-w-0 flex-1">
+          <h1 className="mb-4 flex items-center gap-2 text-2xl font-semibold text-slate-900">
+            <UsersIcon size={22} className="text-primary-600" />
+            Users
+          </h1>
           <UserSearchBar value={query} onChange={setQuery} />
-          {error && <p style={{ color: "#dc2626" }}>{error}</p>}
+          {error && <p className="mb-3 text-sm font-medium text-rose-600">{error}</p>}
           <UserTable users={users} onSelect={setSelectedUser} />
         </div>
-        <div>
+        <div className="flex-none">
           <UserDetailPanel user={selectedUser} onSuspend={setSuspendTarget} />
           {suspendTarget && (
-            <div style={{ marginTop: 16 }}>
+            <div className="mt-4">
               <SuspendDialog
                 userId={suspendTarget.id}
                 userName={suspendTarget.displayName}

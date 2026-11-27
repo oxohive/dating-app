@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, ImageOff, X } from "lucide-react";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { Table } from "@/components/Table";
@@ -33,7 +34,9 @@ export function VerificationQueue({ verifications, onApprove, onReject }: Verifi
         {
           key: "profile",
           header: "Profile",
-          render: (verification) => verification.profileDisplayName,
+          render: (verification) => (
+            <span className="font-medium text-slate-800">{verification.profileDisplayName}</span>
+          ),
         },
         {
           key: "selfie",
@@ -46,10 +49,13 @@ export function VerificationQueue({ verifications, onApprove, onReject }: Verifi
               <img
                 src={verification.selfieUrl}
                 alt={`Selfie submitted by ${verification.profileDisplayName}`}
-                style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 4 }}
+                className="h-16 w-16 rounded-md object-cover ring-1 ring-slate-200"
               />
             ) : (
-              <span>No selfie</span>
+              <span className="inline-flex items-center gap-1.5 text-slate-400">
+                <ImageOff size={14} />
+                No selfie
+              </span>
             ),
         },
         {
@@ -62,9 +68,9 @@ export function VerificationQueue({ verifications, onApprove, onReject }: Verifi
           header: "Review history",
           render: (verification) =>
             verification.status === "pending" ? (
-              <span>Not yet reviewed</span>
+              <span className="text-slate-400">Not yet reviewed</span>
             ) : (
-              <span>
+              <span className="text-slate-500">
                 {verification.reviewedByUserId ?? "unknown reviewer"}
                 {" - "}
                 {verification.reviewedAt ? new Date(verification.reviewedAt).toLocaleString() : "unknown time"}
@@ -76,11 +82,13 @@ export function VerificationQueue({ verifications, onApprove, onReject }: Verifi
           header: "Action",
           render: (verification) =>
             verification.status === "pending" ? (
-              <div style={{ display: "flex", gap: 8 }}>
+              <div className="flex gap-2">
                 <Button variant="primary" onClick={() => onApprove(verification.id)}>
+                  <Check size={14} />
                   Approve
                 </Button>
                 <Button variant="danger" onClick={() => onReject(verification.id)}>
+                  <X size={14} />
                   Reject
                 </Button>
               </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { ListFilter } from "lucide-react";
+
 export interface StatusFilterOption<T extends string> {
   value: T;
   label: string;
@@ -20,16 +22,19 @@ export interface StatusFilterProps<T extends string> {
  */
 export function StatusFilter<T extends string>({ value, options, onChange }: StatusFilterProps<T>) {
   return (
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value as T)}
-      style={{ padding: 8, marginBottom: 16 }}
-    >
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+    <label className="mb-4 inline-flex items-center gap-2 text-sm text-slate-600">
+      <ListFilter size={15} className="text-slate-400" />
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

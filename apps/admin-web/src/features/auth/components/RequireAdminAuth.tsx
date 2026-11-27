@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { LockKeyhole } from "lucide-react";
 import { getAccessToken } from "@/lib/authToken";
 
 export interface RequireAdminAuthProps {
@@ -27,9 +28,21 @@ export function RequireAdminAuth({ children }: RequireAdminAuthProps) {
 
   if (!hasToken) {
     return (
-      <p>
-        You need to <Link href="/login">sign in</Link> to view this page.
-      </p>
+      <div className="flex flex-col items-center gap-4 rounded-lg border border-slate-200 bg-white px-8 py-16 text-center shadow-card">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-100">
+          <LockKeyhole size={22} className="text-primary-600" />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Sign in required</h2>
+          <p className="mt-1 text-sm text-slate-500">You need to sign in to view this page.</p>
+        </div>
+        <Link
+          href="/login"
+          className="inline-flex items-center gap-1.5 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700"
+        >
+          Go to sign in
+        </Link>
+      </div>
     );
   }
 

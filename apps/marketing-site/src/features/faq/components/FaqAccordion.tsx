@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 
 interface FaqItem {
   question: string;
@@ -20,21 +21,35 @@ export function FaqAccordion() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section style={{ padding: "48px 24px", maxWidth: 640 }}>
-      {FAQ_ITEMS.map((item, index) => {
-        const isOpen = openIndex === index;
-        return (
-          <div key={item.question} style={{ borderBottom: "1px solid #e5e7eb", padding: "12px 0" }}>
-            <button
-              onClick={() => setOpenIndex(isOpen ? null : index)}
-              style={{ width: "100%", textAlign: "left", background: "none", border: "none", fontWeight: 600, cursor: "pointer" }}
+    <section className="mx-auto max-w-2xl px-6 py-16 sm:py-20">
+      <div className="space-y-3">
+        {FAQ_ITEMS.map((item, index) => {
+          const isOpen = openIndex === index;
+          return (
+            <div
+              key={item.question}
+              className="overflow-hidden rounded-xl2 border border-neutral-200 bg-white shadow-card transition-shadow hover:shadow-soft"
             >
-              {item.question}
-            </button>
-            {isOpen && <p>{item.answer}</p>}
-          </div>
-        );
-      })}
+              <button
+                onClick={() => setOpenIndex(isOpen ? null : index)}
+                className="flex w-full items-center justify-between gap-4 px-6 py-4 text-left font-semibold text-neutral-900 transition-colors hover:text-primary-600"
+                aria-expanded={isOpen}
+              >
+                {item.question}
+                <ChevronDown
+                  className={`h-5 w-5 flex-shrink-0 text-primary-500 transition-transform duration-200 ${
+                    isOpen ? "rotate-180" : ""
+                  }`}
+                  aria-hidden="true"
+                />
+              </button>
+              {isOpen && (
+                <p className="px-6 pb-5 text-sm leading-relaxed text-neutral-600">{item.answer}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }

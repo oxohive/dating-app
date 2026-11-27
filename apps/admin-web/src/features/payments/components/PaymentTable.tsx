@@ -10,11 +10,14 @@ export interface PaymentTableProps {
   onRefund: (paymentId: string) => void;
 }
 
-const STATUS_TONE: Record<Payment["status"], "success" | "warning" | "danger" | "neutral"> = {
+// Each payment status gets its own distinguishable badge tone - "refunded"
+// is intentionally its own color (violet), not folded into neutral, so it
+// reads as a distinct terminal state from "pending"/"succeeded"/"failed".
+const STATUS_TONE: Record<Payment["status"], "success" | "warning" | "danger" | "refunded"> = {
   succeeded: "success",
   pending: "warning",
   failed: "danger",
-  refunded: "neutral",
+  refunded: "refunded",
 };
 
 /**
@@ -30,11 +33,15 @@ export function PaymentTable({ payments, onRefund }: PaymentTableProps) {
       emptyMessage="No payments match this filter."
       columns={[
         { key: "user", header: "User", render: (payment) => payment.userId },
-        { key: "provider", header: "Provider", render: (payment) => payment.provider },
+        { key: "provider", header: "Provider", render: (payment) => <span className="text-slate-500">{payment.provider}</span> },
         {
           key: "amount",
           header: "Amount",
-          render: (payment) => formatAmount(payment.amountMinorUnits, payment.currency),
+          render: (payment) => (
+            <span className="font-medium text-slate-800">
+              {formatAmount(payment.amountMinorUnits, payment.currency)}
+            </span>
+          ),
         },
         {
           key: "status",
@@ -44,7 +51,7 @@ export function PaymentTable({ payments, onRefund }: PaymentTableProps) {
         {
           key: "createdAt",
           header: "Created at",
-          render: (payment) => new Date(payment.createdAt).toLocaleString(),
+          render: (payment) => <span className="text-slate-500">{new Date(payment.createdAt).toLocaleString()}</span>,
         },
         {
           key: "actions",

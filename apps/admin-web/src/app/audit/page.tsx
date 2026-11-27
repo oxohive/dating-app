@@ -1,5 +1,6 @@
 "use client";
 
+import { ScrollText } from "lucide-react";
 import { RequireAdminAuth } from "@/features/auth/components/RequireAdminAuth";
 import { AuditLogTable } from "@/features/audit/components/AuditLogTable";
 import { useAuditLog } from "@/features/audit/hooks/useAuditLog";
@@ -14,8 +15,11 @@ export default function AuditPage() {
 
   return (
     <RequireAdminAuth>
-      <h1>Admin Audit Log</h1>
-      {error && <p style={{ color: "#dc2626" }}>{error}</p>}
+      <h1 className="mb-4 flex items-center gap-2 text-2xl font-semibold text-slate-900">
+        <ScrollText size={22} className="text-primary-600" />
+        Admin Audit Log
+      </h1>
+      {error && <p className="mb-3 text-sm font-medium text-rose-600">{error}</p>}
       <AuditLogTable entries={entries} />
     </RequireAdminAuth>
   );

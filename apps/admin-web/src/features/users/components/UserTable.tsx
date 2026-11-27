@@ -20,11 +20,14 @@ export function UserTable({ users, onSelect }: UserTableProps) {
       emptyMessage="No users match your search."
       columns={[
         { key: "name", header: "Name", render: (user) => (
-          <button onClick={() => onSelect(user)} style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer" }}>
+          <button
+            onClick={() => onSelect(user)}
+            className="font-medium text-primary-600 transition-colors hover:text-primary-800 hover:underline"
+          >
             {user.displayName}
           </button>
         ) },
-        { key: "phone", header: "Phone", render: (user) => user.phone },
+        { key: "phone", header: "Phone", render: (user) => <span className="text-slate-600">{user.phone}</span> },
         { key: "status", header: "Status", render: (user) => (
           <Badge tone={user.status === "active" ? "success" : "danger"}>{user.status}</Badge>
         ) },

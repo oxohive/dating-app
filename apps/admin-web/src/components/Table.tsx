@@ -1,3 +1,5 @@
+import { Inbox } from "lucide-react";
+
 export interface TableColumn<T> {
   header: string;
   render: (row: T) => React.ReactNode;
@@ -21,34 +23,41 @@ export function Table<T>({
   emptyMessage = "No data to display.",
 }: TableProps<T>) {
   if (rows.length === 0) {
-    return <p>{emptyMessage}</p>;
+    return (
+      <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white py-14 text-center">
+        <Inbox size={28} className="text-slate-400" />
+        <p className="text-sm text-slate-500">{emptyMessage}</p>
+      </div>
+    );
   }
 
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-      <thead>
-        <tr>
-          {columns.map((column) => (
-            <th
-              key={column.key}
-              style={{ textAlign: "left", borderBottom: "1px solid #d1d5db", padding: 8 }}
-            >
-              {column.header}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={getRowKey(row)}>
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card">
+      <table className="w-full border-collapse text-left text-sm">
+        <thead>
+          <tr className="border-b border-slate-200 bg-slate-50">
             {columns.map((column) => (
-              <td key={column.key} style={{ borderBottom: "1px solid #f3f4f6", padding: 8 }}>
-                {column.render(row)}
-              </td>
+              <th
+                key={column.key}
+                className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500"
+              >
+                {column.header}
+              </th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((row) => (
+            <tr key={getRowKey(row)} className="transition-colors hover:bg-slate-50">
+              {columns.map((column) => (
+                <td key={column.key} className="px-4 py-3 align-middle text-slate-700">
+                  {column.render(row)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

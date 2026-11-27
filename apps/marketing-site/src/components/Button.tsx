@@ -6,9 +6,11 @@ export interface ButtonProps {
   variant?: ButtonVariant;
 }
 
-const VARIANT_STYLES: Record<ButtonVariant, React.CSSProperties> = {
-  primary: { background: "#db2777", color: "#fff" },
-  secondary: { background: "#f3f4f6", color: "#111827" },
+const VARIANT_CLASSES: Record<ButtonVariant, string> = {
+  primary:
+    "bg-primary-500 text-white shadow-soft hover:bg-primary-600 hover:shadow-lg hover:-translate-y-0.5",
+  secondary:
+    "bg-white text-neutral-800 border border-neutral-200 hover:border-primary-300 hover:text-primary-600 hover:-translate-y-0.5",
 };
 
 /**
@@ -18,14 +20,7 @@ export function Button({ children, href = "#", variant = "primary" }: ButtonProp
   return (
     <a
       href={href}
-      style={{
-        display: "inline-block",
-        padding: "10px 20px",
-        borderRadius: 6,
-        textDecoration: "none",
-        fontWeight: 600,
-        ...VARIANT_STYLES[variant],
-      }}
+      className={`inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition-all duration-200 ${VARIANT_CLASSES[variant]}`}
     >
       {children}
     </a>
