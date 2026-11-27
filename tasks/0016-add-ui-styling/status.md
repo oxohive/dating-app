@@ -1,6 +1,6 @@
 # Status: 0016-add-ui-styling
 
-**State:** integrating
+**State:** done
 
 ## Definition-of-done checklist
 
@@ -24,7 +24,20 @@
       run hit a sandbox-local jest-worker OOM on 2 suites, re-ran clean
       with `--maxWorkers=2`, confirming it was a parallelism/resource
       artifact, not a real failure)
-- [ ] Committed and pushed
-- [ ] Deployed and visually verified live against the real pilot URLs
+- [x] Committed and pushed — commit `59f696edfab39e18a16b68dd4763484daa24d1a8`
+      on `main`
+- [x] Deployed and visually verified live against the real pilot URLs —
+      CI run 45984799221 and Deploy run 45984799121 both green (watched
+      to completion); live screenshots taken against
+      `http://15.206.247.148/` (gradient coral/pink hero, pill nav,
+      lucide heart icon, "Find real connections in Chennai") and
+      `http://15.206.247.148:8081/` (dark indigo sidebar nav with lucide
+      icons, card-based dashboard) with a real Playwright/Chromium
+      instance — genuine visual confirmation, not just HTML-source
+      inspection. Raw HTML on both URLs also confirmed real compiled
+      Tailwind utility classes (`bg-[#fffaf8]`, `font-display`,
+      `bg-primary-950`, etc.) and `next/font` variable classes on live
+      elements, fetched with cache-busting query params. Backend
+      `/health` still returns 200 with a correlation id — no regression.
 
 Moves to `done` only once every box above is independently verified.
