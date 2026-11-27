@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LockKeyhole } from "lucide-react";
-import { getAccessToken } from "@/lib/authToken";
+import { useAuthStore } from "@/features/auth/store/authStore";
 
 export interface RequireAdminAuthProps {
   children: React.ReactNode;
@@ -14,19 +14,25 @@ export interface RequireAdminAuthProps {
  * a client-side convenience only - the backend's `is_admin` check on each
  * endpoint is what actually enforces access; a signed-in non-admin will
  * simply get 403s from the API once past this check.
+ *
+ * Reads `isAuthenticated` from the shared auth store (reactive, hydrated
+ * from `localStorage` at module load) instead of taking its own fresh
+ * `localStorage` read - the gating condition itself (token present vs. not)
+ * is unchanged, only its source is.
  */
 export function RequireAdminAuth({ children }: RequireAdminAuthProps) {
-  const [hasToken, setHasToken] = useState<boolean | null>(null);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const [hasMounted, setHasMounted] = useState(false);
 
   useEffect(() => {
-    setHasToken(getAccessToken() !== null);
+    setHasMounted(true);
   }, []);
 
-  if (hasToken === null) {
+  if (!hasMounted) {
     return null;
   }
 
-  if (!hasToken) {
+  if (!isAuthenticated) {
     return (
       <div className="flex flex-col items-center gap-4 rounded-lg border border-slate-200 bg-white px-8 py-16 text-center shadow-card">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-100">

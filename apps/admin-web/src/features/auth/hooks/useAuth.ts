@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { requestOtp, verifyOtp } from "@/features/auth/api/auth.api";
-import { setAccessToken } from "@/lib/authToken";
+import { useAuthStore } from "@/features/auth/store/authStore";
 import { ApiError } from "@/lib/apiClient";
 
 export interface UseAuthResult {
@@ -24,6 +24,7 @@ export function useAuth(): UseAuthResult {
   const [otpRequested, setOtpRequested] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const setAccessToken = useAuthStore((state) => state.setAccessToken);
 
   const sendOtp = useCallback(async () => {
     setIsSubmitting(true);
@@ -53,7 +54,7 @@ export function useAuth(): UseAuthResult {
         setIsSubmitting(false);
       }
     },
-    [phoneNumber]
+    [phoneNumber, setAccessToken]
   );
 
   return { phoneNumber, setPhoneNumber, otpRequested, isSubmitting, error, sendOtp, confirmOtp };

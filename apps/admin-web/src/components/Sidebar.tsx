@@ -9,9 +9,9 @@ import {
   ShieldCheck,
   CreditCard,
   ScrollText,
-  LogIn,
   type LucideIcon,
 } from "lucide-react";
+import { SidebarAuthAction } from "@/components/SidebarAuthAction";
 
 interface NavItem {
   href: string;
@@ -30,10 +30,11 @@ const NAV_ITEMS: NavItem[] = [
 
 /**
  * Persistent left-hand navigation shell for the admin dashboard. Highlights
- * the active section based on the current route. Purely presentational -
- * each page still gates its own content behind `RequireAdminAuth`, so an
- * unauthenticated admin can still see the shell but will hit the sign-in
- * gate when a gated page's content renders.
+ * the active section based on the current route. Each page still gates its
+ * own content behind `RequireAdminAuth`, so an unauthenticated admin can
+ * still see the shell but will hit the sign-in gate when a gated page's
+ * content renders. The footer auth action (`SidebarAuthAction`) reflects
+ * real, reactive auth state from the shared auth store.
  */
 export function Sidebar() {
   const pathname = usePathname();
@@ -71,13 +72,7 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t border-white/10 px-3 py-4">
-        <Link
-          href="/login"
-          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-primary-200 transition-colors hover:bg-white/5 hover:text-white"
-        >
-          <LogIn size={17} className="text-primary-400" />
-          Sign in
-        </Link>
+        <SidebarAuthAction />
       </div>
     </aside>
   );
