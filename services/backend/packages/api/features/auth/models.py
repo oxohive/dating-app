@@ -39,6 +39,14 @@ class User(Base):
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Set only by self-service account deletion (`POST /auth/account/delete`),
+    # alongside `is_active = False`. Admin suspension (`admin_service.
+    # suspend_user`) sets `is_active = False` only and leaves this `None` --
+    # this column is exactly what distinguishes the two cases, which
+    # otherwise share the single `is_active` flag (see
+    # tasks/0023-account-deletion-and-admin-analytics/plan.md). A migration
+    # for this column is added at the integration step, not here.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

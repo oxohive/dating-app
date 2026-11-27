@@ -1,6 +1,6 @@
 """Admin service: user search, report review, suspend actions, verification
 review queue, read-only subscription/payment monitoring, the payment-refund
-workflow, and the admin audit log.
+workflow, the admin audit log, and read-only admin analytics.
 
 Imports `User` from `auth.models` and `Profile` from `profiles.models` to
 join/query them (per the plan's cross-feature-model-import rule) — never
@@ -14,18 +14,31 @@ monitoring (`list_subscriptions`/`list_payments`) stays read-only, but
 exception: it writes `Payment.status` and, conditionally, `Subscription.status`,
 per the refund-workflow contract in
 `tasks/0012-wave3-engagement-and-lifecycle/plan.md`.
+
+Admin analytics (task 0023, subtask B2, see this section at the bottom of
+the module) imports `Like`/`Match`/`Message` read-only from their owning
+modules purely to run `COUNT`/`GROUP BY` aggregates -- never mutates any of
+them. **True DAU/WAU is explicitly out of scope for this wave**: it would
+require a last-active-at / session-activity tracking mechanism that does
+not exist anywhere in this codebase today, and approximating it with a
+misleading proxy (e.g. "users created a row today") would be worse than
+not showing it at all. This is a named, real future gap, not an oversight.
 """
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from packages.api.features.admin.models import AdminAuditLog
 from packages.api.features.auth.models import User
+from packages.api.features.likes.models import Like
+from packages.api.features.matches.models import Match
+from packages.api.features.messaging.models import Message
 from packages.api.features.notifications import notification_service
 from packages.api.features.profiles.models import Profile
 from packages.api.features.safety.models import Report
@@ -299,3 +312,172 @@ def refund_payment(db: Session, payment_id: uuid.UUID, admin_user_id: uuid.UUID)
     db.commit()
     db.refresh(payment)
     return payment
+
+
+# --- Admin analytics (task 0023, subtask B2) --------------------------------
+#
+# Read-only aggregate queries backing `GET /admin/analytics`. Every count
+# here is a single `COUNT`/`GROUP BY`-shaped query against existing tables
+# -- none of this loops per-row/per-user, which matters in particular for
+# `get_active_premium_count` (see its docstring: the same two conditions as
+# `subscriptions_service.has_active_premium`, but as one aggregate query
+# rather than one call per user).
+#
+# DAU/WAU is deliberately NOT implemented here -- see the module docstring.
+
+REGISTRATION_WINDOW_DAYS = 30
+ACTIVE_PREMIUM_STATUS = "active"
+
+
+@dataclass(frozen=True)
+class RegistrationDayCount:
+    """One day's registration count, for the registrations-by-day series."""
+
+    day: date
+    count: int
+
+
+@dataclass(frozen=True)
+class CityCount:
+    """One city's user count, for the users-by-city breakdown."""
+
+    city: str
+    count: int
+
+
+@dataclass(frozen=True)
+class AnalyticsSummary:
+    """Everything `GET /admin/analytics` returns, assembled by `get_analytics`."""
+
+    total_users: int
+    total_profiles: int
+    registrations_by_day: list[RegistrationDayCount]
+    users_by_city: list[CityCount]
+    total_likes: int
+    total_matches: int
+    total_messages: int
+    active_premium_count: int
+
+
+def _coerce_to_date(value: date | datetime | str) -> date:
+    """Normalize a `func.date(...)` result to a plain `date`.
+
+    `func.date()` maps to each dialect's own native `date()` SQL function
+    (both SQLite and PostgreSQL have one), but the Python value that comes
+    back differs by driver: PostgreSQL drivers typically hand back a real
+    `date`/`datetime`, SQLite hands back an ISO-format string. Handling all
+    three keeps `get_registrations_by_day` portable across both.
+    """
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value))
+
+
+def get_total_users(db: Session) -> int:
+    """Total `User` rows, regardless of `is_active`/`deleted_at`."""
+    return db.scalar(select(func.count(User.id))) or 0
+
+
+def get_total_profiles(db: Session) -> int:
+    """Total `Profile` rows (i.e. completed onboarding)."""
+    return db.scalar(select(func.count(Profile.id))) or 0
+
+
+def get_total_likes(db: Session) -> int:
+    """Total `Like` rows, a single `COUNT` -- `Like` imported read-only."""
+    return db.scalar(select(func.count(Like.id))) or 0
+
+
+def get_total_matches(db: Session) -> int:
+    """Total `Match` rows, a single `COUNT` -- `Match` imported read-only."""
+    return db.scalar(select(func.count(Match.id))) or 0
+
+
+def get_total_messages(db: Session) -> int:
+    """Total `Message` rows, a single `COUNT` -- `Message` imported read-only."""
+    return db.scalar(select(func.count(Message.id))) or 0
+
+
+def get_active_premium_count(db: Session) -> int:
+    """Count of distinct users with a currently-active Premium subscription.
+
+    Uses the **exact same two conditions** as
+    `subscriptions_service.has_active_premium` (confirmed by reading that
+    function directly, per plan.md): `Subscription.status == "active" AND
+    Subscription.expires_at > now()`. This is one aggregate query
+    (`COUNT(DISTINCT user_id)`), never a per-user loop calling
+    `has_active_premium` -- that would be needlessly slow for an admin
+    summary stat, and the plan explicitly calls this out.
+    """
+    now = datetime.now(UTC)
+    stmt = select(func.count(func.distinct(Subscription.user_id))).where(
+        Subscription.status == ACTIVE_PREMIUM_STATUS,
+        Subscription.expires_at > now,
+    )
+    return db.scalar(stmt) or 0
+
+
+def get_registrations_by_day(
+    db: Session, *, days: int = REGISTRATION_WINDOW_DAYS
+) -> list[RegistrationDayCount]:
+    """Registrations per calendar day (UTC) for the last `days` days
+    (inclusive of today), zero-filled for any day with no registrations.
+
+    A single `COUNT`/`GROUP BY func.date(User.created_at)` query, not a
+    per-day query loop. Zero-filling missing days makes the series a
+    complete, chart-ready 30-point run rather than a sparse list the caller
+    would have to reconstruct the calendar for themselves.
+    """
+    today = datetime.now(UTC).date()
+    start_day = today - timedelta(days=days - 1)
+    start_dt = datetime(start_day.year, start_day.month, start_day.day, tzinfo=UTC)
+
+    stmt = (
+        select(func.date(User.created_at), func.count(User.id))
+        .where(User.created_at >= start_dt)
+        .group_by(func.date(User.created_at))
+    )
+    counts_by_day = {_coerce_to_date(raw_day): count for raw_day, count in db.execute(stmt).all()}
+
+    return [
+        RegistrationDayCount(day=day, count=counts_by_day.get(day, 0))
+        for day in (start_day + timedelta(days=offset) for offset in range(days))
+    ]
+
+
+def get_users_by_city(db: Session) -> list[CityCount]:
+    """Every city with at least one `Profile`, with its user count.
+
+    A single `COUNT`/`GROUP BY Profile.city` query, ordered by count
+    descending (ties broken alphabetically by city, for a stable, readable
+    order) -- all cities are returned, not just a top-N slice, since the
+    expected cardinality (distinct cities) is small enough to render
+    directly in admin-web's table per plan.md.
+    """
+    stmt = (
+        select(Profile.city, func.count(Profile.id))
+        .group_by(Profile.city)
+        .order_by(func.count(Profile.id).desc(), Profile.city.asc())
+    )
+    return [CityCount(city=city, count=count) for city, count in db.execute(stmt).all()]
+
+
+def get_analytics(db: Session) -> AnalyticsSummary:
+    """Assemble the full `GET /admin/analytics` response.
+
+    Every field here is backed by its own single aggregate query (see each
+    helper above) -- this function does no additional querying of its own,
+    it only composes their results.
+    """
+    return AnalyticsSummary(
+        total_users=get_total_users(db),
+        total_profiles=get_total_profiles(db),
+        registrations_by_day=get_registrations_by_day(db),
+        users_by_city=get_users_by_city(db),
+        total_likes=get_total_likes(db),
+        total_matches=get_total_matches(db),
+        total_messages=get_total_messages(db),
+        active_premium_count=get_active_premium_count(db),
+    )

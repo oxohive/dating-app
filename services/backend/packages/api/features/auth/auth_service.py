@@ -15,6 +15,7 @@ from packages.api.features.auth.utils import (
     hash_refresh_token,
     refresh_token_expiry,
 )
+from packages.api.features.profiles import profile_service
 
 
 class InvalidOtpError(Exception):
@@ -113,3 +114,31 @@ def logout(db: DbSession, refresh_token: str) -> None:
         session.revoked_at = datetime.now(UTC)
         db.add(session)
         db.commit()
+
+
+def delete_account(db: DbSession, user: User) -> None:
+    """Self-service, irreversible-from-the-user's-perspective account deletion.
+
+    Sets `is_active = False` AND `deleted_at = now()` on `user` -- both
+    fields, not just `is_active`, so this is distinguishable from an
+    admin suspension (`admin_service.suspend_user`, which sets
+    `is_active = False` only and leaves `deleted_at` `None`). Flipping
+    `is_active` to `False` immediately invalidates every existing
+    session/token for this user on their next request, since
+    `auth.dependencies.get_current_user` already rejects `not
+    user.is_active` -- no separate token-blacklist mechanism needed.
+
+    Also scrubs PII (`display_name`/`bio`/`interests`) on the user's
+    `Profile`, if one exists -- a user who deletes their account before
+    completing onboarding has no `Profile` row yet, which is not an
+    error. Does NOT delete `Match`/`Conversation`/`Message` rows.
+    """
+    user.is_active = False
+    user.deleted_at = datetime.now(UTC)
+    db.add(user)
+
+    profile = profile_service.get_profile_by_user_id(db, user.id)
+    if profile is not None:
+        profile_service.scrub_profile_pii(db, profile)
+
+    db.commit()

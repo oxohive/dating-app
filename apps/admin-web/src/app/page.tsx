@@ -1,62 +1,54 @@
-import Link from "next/link";
-import { Users, Flag, LogIn, ArrowRight } from "lucide-react";
+"use client";
 
-const QUICK_LINKS = [
-  {
-    href: "/users",
-    label: "User search & moderation",
-    description: "Find a user, review their profile, and suspend accounts that break the rules.",
-    icon: Users,
-  },
-  {
-    href: "/reports",
-    label: "Report queue",
-    description: "Work through user-submitted reports and mark them resolved.",
-    icon: Flag,
-  },
-  {
-    href: "/login",
-    label: "Admin sign in",
-    description: "Sign in with your admin phone number to unlock the gated tools.",
-    icon: LogIn,
-  },
-];
+import { Crown, Heart, HeartHandshake, LayoutDashboard, MessagesSquare, UserCheck, Users } from "lucide-react";
+import { RequireAdminAuth } from "@/features/auth/components/RequireAdminAuth";
+import { StatTile } from "@/features/dashboard/components/StatTile";
+import { RegistrationsByDayTable } from "@/features/dashboard/components/RegistrationsByDayTable";
+import { CityBreakdownTable } from "@/features/dashboard/components/CityBreakdownTable";
+import { useDashboardAnalytics } from "@/features/dashboard/hooks/useDashboardAnalytics";
 
 /**
- * Admin home page. Links out to the two MVP admin tools.
+ * Admin home page: real analytics dashboard, replacing the stale
+ * "quick links" stub (the two links it pointed at, `/users` and
+ * `/reports`, are already reachable via the sidebar nav, same as the
+ * other 4 admin tools - this page's own content should be the one thing
+ * only it offers: platform-wide stats). Thin composition of the
+ * dashboard feature's hook/components, same pattern as every other
+ * admin-web page.
  */
 export default function HomePage() {
-  return (
-    <div>
-      <h1 className="text-2xl font-semibold text-slate-900">Admin Dashboard</h1>
-      <p className="mt-1 text-sm text-slate-500">Quick links to the tools your team uses most.</p>
+  const { analytics, loading, error } = useDashboardAnalytics();
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {QUICK_LINKS.map((link) => {
-          const Icon = link.icon;
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="group flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-5 shadow-card transition-all hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-md"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary-100">
-                <Icon size={18} className="text-primary-600" />
-              </div>
-              <div>
-                <p className="flex items-center gap-1 font-semibold text-slate-900">
-                  {link.label}
-                  <ArrowRight
-                    size={15}
-                    className="text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-primary-600"
-                  />
-                </p>
-                <p className="mt-1 text-sm text-slate-500">{link.description}</p>
-              </div>
-            </Link>
-          );
-        })}
+  return (
+    <RequireAdminAuth>
+      <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-slate-900">
+        <LayoutDashboard size={22} className="text-primary-600" />
+        Admin Dashboard
+      </h1>
+      <p className="mb-6 text-sm text-slate-500">Platform stats at a glance.</p>
+
+      {error && <p className="mb-4 text-sm font-medium text-rose-600">{error}</p>}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatTile label="Total users" value={analytics?.totalUsers ?? 0} icon={Users} loading={loading} />
+        <StatTile label="Total profiles" value={analytics?.totalProfiles ?? 0} icon={UserCheck} loading={loading} />
+        <StatTile label="Active Premium" value={analytics?.activePremiumCount ?? 0} icon={Crown} loading={loading} />
+        <StatTile label="Total likes" value={analytics?.totalLikes ?? 0} icon={Heart} loading={loading} />
+        <StatTile label="Total matches" value={analytics?.totalMatches ?? 0} icon={HeartHandshake} loading={loading} />
+        <StatTile label="Total messages" value={analytics?.totalMessages ?? 0} icon={MessagesSquare} loading={loading} />
       </div>
-    </div>
+
+      <div className="mt-10 grid gap-6 lg:grid-cols-2">
+        <section>
+          <h2 className="mb-3 text-base font-semibold text-slate-900">Registrations (last 30 days)</h2>
+          <RegistrationsByDayTable entries={analytics?.registrationsByDay ?? []} loading={loading} />
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-base font-semibold text-slate-900">Users by city</h2>
+          <CityBreakdownTable entries={analytics?.usersByCity ?? []} loading={loading} />
+        </section>
+      </div>
+    </RequireAdminAuth>
   );
 }

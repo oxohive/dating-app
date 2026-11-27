@@ -23,6 +23,9 @@ from sqlalchemy.pool import StaticPool
 from packages.api.core.database import Base, get_db
 from packages.api.features.auth.dependencies import get_current_user
 from packages.api.features.auth.models import User
+from packages.api.features.likes.models import Like  # noqa: F401
+from packages.api.features.matches.models import Match  # noqa: F401
+from packages.api.features.messaging.models import Conversation, Message  # noqa: F401
 from packages.api.features.profiles.models import Profile
 from packages.api.features.safety.models import Report  # noqa: F401
 from packages.api.features.subscriptions.models import Payment, Subscription  # noqa: F401
@@ -131,6 +134,7 @@ def make_user_and_profile(
     phone_number: str | None = None,
     display_name: str = "Test User",
     is_admin: bool = False,
+    city: str = "Mumbai",
 ) -> tuple[User, Profile]:
     user = make_user(db, phone_number=phone_number, is_admin=is_admin)
     profile = Profile(
@@ -139,7 +143,7 @@ def make_user_and_profile(
         gender="woman",
         orientation_preferences=["men"],
         relationship_intention="serious",
-        city="Mumbai",
+        city=city,
         locality="Downtown",
     )
     db.add(profile)
@@ -209,3 +213,47 @@ def make_payment(
     db.add(payment)
     db.commit()
     return payment
+
+
+def make_like(db: DbSession, *, from_profile_id: uuid.UUID, to_profile_id: uuid.UUID) -> Like:
+    like = Like(from_profile_id=from_profile_id, to_profile_id=to_profile_id)
+    db.add(like)
+    db.commit()
+    return like
+
+
+def make_match(
+    db: DbSession, *, profile_a_id: uuid.UUID, profile_b_id: uuid.UUID, is_active: bool = True
+) -> Match:
+    # `Match` is always stored with the lexicographically smaller UUID as
+    # `profile_a_id` (see `matches/match_service.py`'s `_normalize_pair`) --
+    # mirrored here so this factory matches the real invariant.
+    first, second = sorted([profile_a_id, profile_b_id], key=str)
+    match = Match(profile_a_id=first, profile_b_id=second, is_active=is_active)
+    db.add(match)
+    db.commit()
+    return match
+
+
+def make_conversation(db: DbSession, *, match_id: uuid.UUID) -> Conversation:
+    conversation = Conversation(match_id=match_id)
+    db.add(conversation)
+    db.commit()
+    return conversation
+
+
+def make_message(
+    db: DbSession,
+    *,
+    conversation_id: uuid.UUID,
+    sender_profile_id: uuid.UUID,
+    content: str = "hi",
+) -> Message:
+    message = Message(
+        conversation_id=conversation_id,
+        sender_profile_id=sender_profile_id,
+        content=content,
+    )
+    db.add(message)
+    db.commit()
+    return message

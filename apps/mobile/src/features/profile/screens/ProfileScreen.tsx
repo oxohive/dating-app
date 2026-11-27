@@ -1,11 +1,14 @@
 import { useNavigation } from '@react-navigation/native';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import type { RootNavigationProp } from '../../../app/navigation/RootNavigator';
 import { Button } from '../../../components/Button';
 import { ErrorText } from '../../../components/ErrorText';
 import { ScreenContainer } from '../../../components/ScreenContainer';
+import { getApiErrorMessage } from '../../../core/apiErrorMessage';
 import { spacing } from '../../../core/theme';
+import { buildDeleteAccountAlertSpec } from '../../account/accountDeletion';
+import { useDeleteAccount } from '../../account/hooks/useDeleteAccount';
 import { useLogout } from '../../auth/hooks/useLogout';
 import { RadiusPicker } from '../../discovery/components/RadiusPicker';
 import { useDiscoveryPreferencesStore } from '../../discovery/store/discoveryPreferencesStore';
@@ -34,12 +37,18 @@ export function ProfileScreen() {
   const { data: profile, isLoading } = useProfile();
   const [isEditing, setIsEditing] = useState(false);
   const { logOut, isLoggingOut } = useLogout();
+  const { deleteAccount, isDeletingAccount, deleteAccountError } = useDeleteAccount();
   const editForm = useProfileEditForm(profile, () => setIsEditing(false));
   const sortedPhotos = [...(profile?.photos ?? [])].sort((a, b) => a.position - b.position);
   const { addPhoto, isUploading, error: photoError } = usePhotoUpload(sortedPhotos.length);
   const { isPremium } = useIsPremium();
   const radius = useDiscoveryPreferencesStore((state) => state.radius);
   const setRadius = useDiscoveryPreferencesStore((state) => state.setRadius);
+
+  function handlePressDeleteAccount() {
+    const spec = buildDeleteAccountAlertSpec(deleteAccount);
+    Alert.alert(spec.title, spec.message, spec.buttons);
+  }
 
   if (isLoading || !profile) {
     return (
@@ -95,6 +104,8 @@ export function ProfileScreen() {
         <Button label="Notification preferences" onPress={() => navigation.navigate('NotificationPreferences')} variant="secondary" />
       </View>
       <Button disabled={isLoggingOut} label="Log out" onPress={logOut} variant="secondary" />
+      <Button disabled={isDeletingAccount} label="Delete my account" onPress={handlePressDeleteAccount} variant="secondary" />
+      {deleteAccountError ? <ErrorText message={getApiErrorMessage(deleteAccountError, 'Could not delete your account. Please try again.')} /> : null}
     </ScreenContainer>
   );
 }

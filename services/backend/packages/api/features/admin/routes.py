@@ -20,8 +20,11 @@ from packages.api.core.database import get_db
 from packages.api.features.admin import admin_service, validation
 from packages.api.features.admin.dependencies import require_admin
 from packages.api.features.admin.schemas import (
+    AdminAnalyticsOut,
     AdminAuditLogOut,
+    CityCountOut,
     PaymentAdminOut,
+    RegistrationDayOut,
     ReportAdminOut,
     ResolveReportRequest,
     SubscriptionAdminOut,
@@ -206,3 +209,33 @@ def get_audit_log(
     """
     rows = admin_service.list_audit_log(db, limit=limit, offset=offset)
     return [AdminAuditLogOut.model_validate(row) for row in rows]
+
+
+@router.get("/analytics", response_model=AdminAnalyticsOut)
+def get_analytics(db: DbSession, _admin: AdminUser) -> AdminAnalyticsOut:
+    """Admin analytics summary (task 0023, subtask B2): total users/
+    profiles, registrations-by-day for the last 30 days, users-by-city,
+    total likes/matches/messages, and the active-Premium subscriber count.
+
+    Every number here is a single aggregate (`COUNT`/`GROUP BY`) query --
+    see `admin_service.get_analytics` and its helpers, none of them loop
+    per-user/per-row. Deliberately has no DAU/WAU field -- see
+    `AdminAnalyticsOut`'s docstring for why that's out of scope this wave,
+    not an oversight.
+    """
+    summary = admin_service.get_analytics(db)
+    return AdminAnalyticsOut(
+        total_users=summary.total_users,
+        total_profiles=summary.total_profiles,
+        registrations_by_day=[
+            RegistrationDayOut(day=row.day, count=row.count)
+            for row in summary.registrations_by_day
+        ],
+        users_by_city=[
+            CityCountOut(city=row.city, count=row.count) for row in summary.users_by_city
+        ],
+        total_likes=summary.total_likes,
+        total_matches=summary.total_matches,
+        total_messages=summary.total_messages,
+        active_premium_count=summary.active_premium_count,
+    )

@@ -5,6 +5,7 @@ payment-refund workflow, and the admin audit log (task 0012, subtask B8).
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session as DbSession
 
@@ -21,6 +22,10 @@ from packages.api.features.verification.models import (
 )
 
 from .conftest import (
+    make_conversation,
+    make_like,
+    make_match,
+    make_message,
     make_payment,
     make_subscription,
     make_user,
@@ -49,6 +54,7 @@ def test_non_admin_gets_403_on_every_admin_endpoint(client, as_user, db: DbSessi
     assert client.get("/admin/payments").status_code == 403
     assert client.post(f"/admin/payments/{uuid.uuid4()}/refund").status_code == 403
     assert client.get("/admin/audit-log").status_code == 403
+    assert client.get("/admin/analytics").status_code == 403
 
 
 def test_admin_user_can_list_users(client, as_user, db: DbSession) -> None:
@@ -706,3 +712,127 @@ def test_audit_log_listing_empty_when_nothing_recorded(client, as_user, db: DbSe
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+# --- Admin analytics (task 0023, subtask B2) --------------------------------
+
+
+def test_admin_analytics_aggregate_counts_against_a_known_dataset(
+    client, as_user, db: DbSession
+) -> None:
+    """Build a small dataset with known counts, then assert the endpoint
+    returns exactly those counts -- per plan.md's test requirement."""
+    admin = make_user(db, is_admin=True)
+    user_a, profile_a = make_user_and_profile(db, display_name="Alice", city="Mumbai")
+    user_b, profile_b = make_user_and_profile(db, display_name="Bob", city="Mumbai")
+    user_c, profile_c = make_user_and_profile(db, display_name="Cara", city="Delhi")
+    # A user with no profile -- counts toward total_users, not total_profiles.
+    make_user(db)
+
+    # 2 likes.
+    make_like(db, from_profile_id=profile_a.id, to_profile_id=profile_b.id)
+    make_like(db, from_profile_id=profile_b.id, to_profile_id=profile_c.id)
+
+    # 1 match, with a conversation holding 3 messages.
+    match = make_match(db, profile_a_id=profile_a.id, profile_b_id=profile_b.id)
+    conversation = make_conversation(db, match_id=match.id)
+    make_message(db, conversation_id=conversation.id, sender_profile_id=profile_a.id)
+    make_message(db, conversation_id=conversation.id, sender_profile_id=profile_b.id)
+    make_message(db, conversation_id=conversation.id, sender_profile_id=profile_a.id)
+
+    now = datetime.now(UTC)
+    # user_a: active, unexpired -> counts.
+    make_subscription(db, user_id=user_a.id, status="active", expires_at=now + timedelta(days=5))
+    # user_b: status "active" but already expired -> must NOT count.
+    make_subscription(db, user_id=user_b.id, status="active", expires_at=now - timedelta(days=1))
+    # user_c: cancelled, even though expires_at is still in the future -> must NOT count.
+    make_subscription(
+        db, user_id=user_c.id, status="cancelled", expires_at=now + timedelta(days=5)
+    )
+
+    as_user(admin)
+    response = client.get("/admin/analytics")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    # admin + user_a + user_b + user_c + the profile-less user = 5.
+    assert body["total_users"] == 5
+    assert body["total_profiles"] == 3
+    assert body["total_likes"] == 2
+    assert body["total_matches"] == 1
+    assert body["total_messages"] == 3
+    assert body["active_premium_count"] == 1
+
+    cities = {row["city"]: row["count"] for row in body["users_by_city"]}
+    assert cities == {"Mumbai": 2, "Delhi": 1}
+    # Ordered by count descending.
+    assert body["users_by_city"][0]["city"] == "Mumbai"
+
+    registrations = body["registrations_by_day"]
+    assert len(registrations) == 30
+    # Every user above was created "now" -- the 30-day series must account
+    # for all of them, zero-filled on every other day.
+    assert sum(day["count"] for day in registrations) == body["total_users"]
+    assert registrations[-1]["day"] == now.date().isoformat()
+
+
+def test_admin_analytics_empty_dataset_returns_zeroed_aggregates(
+    client, as_user, db: DbSession
+) -> None:
+    admin = make_user(db, is_admin=True)
+    as_user(admin)
+
+    response = client.get("/admin/analytics")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_users"] == 1  # just the admin.
+    assert body["total_profiles"] == 0
+    assert body["total_likes"] == 0
+    assert body["total_matches"] == 0
+    assert body["total_messages"] == 0
+    assert body["active_premium_count"] == 0
+    assert body["users_by_city"] == []
+    assert len(body["registrations_by_day"]) == 30
+    assert sum(day["count"] for day in body["registrations_by_day"]) == 1
+
+
+def test_admin_analytics_active_premium_count_matches_has_active_premium_condition(
+    db: DbSession,
+) -> None:
+    """Direct service-level check that `get_active_premium_count` uses the
+    exact same two conditions as `subscriptions_service.has_active_premium`
+    (status == "active" AND expires_at > now), as one aggregate query."""
+    from packages.api.features.subscriptions.subscriptions_service import has_active_premium
+
+    user_a, _ = make_user_and_profile(db)
+    user_b, _ = make_user_and_profile(db)
+    now = datetime.now(UTC)
+    make_subscription(db, user_id=user_a.id, status="active", expires_at=now + timedelta(days=1))
+    make_subscription(db, user_id=user_b.id, status="active", expires_at=now - timedelta(days=1))
+
+    assert has_active_premium(db, user_a.id) is True
+    assert has_active_premium(db, user_b.id) is False
+    assert admin_service.get_active_premium_count(db) == 1
+
+
+def test_admin_analytics_registrations_by_day_is_zero_filled_and_covers_30_days(
+    client, as_user, db: DbSession
+) -> None:
+    admin = make_user(db, is_admin=True)
+    as_user(admin)
+
+    response = client.get("/admin/analytics")
+    body = response.json()
+    registrations = body["registrations_by_day"]
+
+    today = datetime.now(UTC).date()
+    expected_days = [(today - timedelta(days=offset)).isoformat() for offset in range(29, -1, -1)]
+    actual_days = [row["day"] for row in registrations]
+    assert actual_days == expected_days
+    # Only "today" (when the admin was created) has a nonzero count.
+    non_zero_days = [row for row in registrations if row["count"] != 0]
+    assert len(non_zero_days) == 1
+    assert non_zero_days[0]["day"] == today.isoformat()
+    assert non_zero_days[0]["count"] == 1

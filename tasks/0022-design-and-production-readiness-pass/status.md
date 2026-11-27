@@ -1,6 +1,6 @@
 # Status: 0022-design-and-production-readiness-pass
 
-**State:** implementing (three parallel agents dispatched)
+**State:** done — committed `b8d6b1d`, pushed, Vercel auto-deploys admin-web/marketing-site
 
 ## Definition-of-done checklist
 

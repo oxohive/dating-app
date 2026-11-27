@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session as DbSession
 
 from packages.api.core.database import get_db
 from packages.api.features.auth import auth_service
+from packages.api.features.auth.dependencies import get_current_user
+from packages.api.features.auth.models import User
 from packages.api.features.auth.schemas import (
     LogoutIn,
     OtpRequestIn,
@@ -20,6 +22,7 @@ from packages.api.features.auth.schemas import (
 router = APIRouter()
 
 DbDependency = Annotated[DbSession, Depends(get_db)]
+CurrentUserDependency = Annotated[User, Depends(get_current_user)]
 
 
 @router.post("/otp/request", status_code=status.HTTP_202_ACCEPTED)
@@ -57,3 +60,10 @@ def post_refresh(payload: RefreshIn, db: DbDependency) -> RefreshOut:
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 def post_logout(payload: LogoutIn, db: DbDependency) -> None:
     auth_service.logout(db, payload.refresh_token)
+
+
+@router.post(
+    "/account/delete", status_code=status.HTTP_204_NO_CONTENT, response_model=None
+)
+def post_account_delete(user: CurrentUserDependency, db: DbDependency) -> None:
+    auth_service.delete_account(db, user)
