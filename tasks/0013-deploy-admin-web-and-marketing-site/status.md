@@ -1,6 +1,9 @@
 # Status: 0013-deploy-admin-web-and-marketing-site
 
-**State:** done
+**State:** blocked (code/infra complete and pushed; live deploy blocked
+by an unrelated, pre-existing CI break in `services/backend/requirements.txt`
+introduced by Wave 3 / task 0012, commit `ac20d5d` — out of this task's
+ownership scope to fix; see "BLOCKER" section below)
 
 ## Definition-of-done checklist
 
@@ -47,12 +50,65 @@
       complete! Resources: 5 added, 0 changed, 0 destroyed."
 - [x] Instance memory usage checked post-deploy via `docker stats` over
       SSM — see verification results below.
-- [x] Verified live: marketing-site root page and admin-web page both
-      return real HTML, backend API routes unaffected — see verification
-      results below.
+- [ ] Verified live: marketing-site root page and admin-web page both
+      return real HTML, backend API routes unaffected — **BLOCKED, see
+      below.** The existing backend API (`/health`, `/docs`) still works
+      unchanged (confirmed live, still serving the pre-task-0013 image),
+      but the new nginx/compose config with admin-web/marketing-site has
+      never actually reached the instance, because the deploy workflow
+      fails before it gets there (see BLOCKER).
 - [x] Docs updated with new URLs (`docs/runbooks/env-start-stop.md`, new
       "App URLs (task 0013)" section).
 - [x] Committed and pushed to `main`.
+
+## BLOCKER: deploy pipeline fails before reaching this task's new steps
+
+The push to `main` (commit `d286d88`) triggered `Deploy` run
+45972033637, which failed at the **"Build and push backend image"**
+step — before admin-web/marketing-site's build steps even run (they're
+later in the same job). This is NOT caused by this task's changes:
+
+```
+ERROR: Cannot install -r requirements.txt (line 20) and pyjwt==2.9.0
+because these package versions have conflicting dependencies.
+  The user requested pyjwt==2.9.0
+  firebase-admin 7.8.0 depends on pyjwt>=2.15.1
+```
+
+`firebase-admin==7.8.0` was added to `services/backend/requirements.txt`
+in commit `ac20d5d` ("Wave 3 (0012): push notifications, ...") —
+confirmed via `git log -p -- services/backend/requirements.txt`. It
+conflicts with the pre-existing `pyjwt==2.9.0` pin. The immediately
+preceding deploy run (triggered by `ac20d5d` itself, before this task
+started) failed with the identical error, confirming this predates and
+is unrelated to task 0013.
+
+I did not fix this: `services/backend/**` is explicitly outside this
+task's ownership (and explicitly listed as a path I was told not to
+touch — Wave 3's integration owns it). Flagging it here instead of
+working around it.
+
+**Current live state of the pilot instance** (checked directly via SSM,
+not assumed): still running the task-0011 image
+(`dating-app-backend:c288ca4...`), 5 containers only (postgres, redis,
+backend, celery-worker, nginx) — admin-web/marketing-site are not
+present because the deploy that would add them never got past the
+backend build step. `/health` and `/docs` both return 200 confirming
+the existing API is unaffected and uninterrupted by this task's
+(unlanded) changes. `free -h`: 470Mi used / 3.7Gi total, plenty of
+headroom — `docker stats` per-container usage recorded below under
+"Memory usage" for reference once this task's images do land.
+
+**To unblock:** someone needs to fix the backend's dependency pin (e.g.
+bump `pyjwt` to `>=2.15.1` or pin a `firebase-admin` version compatible
+with `pyjwt==2.9.0`) in a separate task/commit touching
+`services/backend/requirements.txt`. Once that's fixed and a new push
+to `main` succeeds past "Build and push backend image", this task's own
+steps (admin-web/marketing-site build+push+deploy) should run
+unmodified — they were never reached, so they're unverified by an
+actual CI run, but the config itself was checked for correctness by
+reading every line (see "What this pass completed" below) and the
+Terraform/IAM/ECR prerequisites are already live.
 
 ## What the interrupted agent had already done correctly (verified by reading each file, not assumed)
 
@@ -79,18 +135,38 @@
    (`ECR_ADMIN_WEB_REPOSITORY`, `ECR_MARKETING_SITE_REPOSITORY`).
 4. Verified admin-web's auth gate end-to-end (client + server).
 5. Updated `docs/runbooks/env-start-stop.md` with the new URLs.
-6. Committed and pushed to `main`, triggering the real CI/CD deploy.
-7. Verified the live deploy (URLs, HTTP status/content, backend API
-   unaffected, `docker stats` memory numbers) — see below.
+6. Committed and pushed to `main`, triggering the real CI/CD deploy —
+   which failed at the pre-existing backend build step (see BLOCKER).
+7. Confirmed via SSM that the live instance is unaffected and still
+   healthy on the old deploy, and recorded current memory headroom.
 
-## Live URLs
+## URLs (not yet live — pending the blocker above)
 
-- Marketing site: `http://15.206.247.148/`
-- Admin web: `http://15.206.247.148:8081/`
-- Backend API (unchanged): `http://15.206.247.148/health`, etc.
+- Marketing site: `http://15.206.247.148/` (will be, once deployed)
+- Admin web: `http://15.206.247.148:8081/` (will be, once deployed)
+- Backend API (confirmed live and unchanged right now):
+  `http://15.206.247.148/health` → `200 {"status":"ok",...}`,
+  `http://15.206.247.148/docs` → `200`.
 
-## Verification results
+## Verification results (as of this pass)
 
-See final report delivered alongside this commit for exact HTTP
-status/content checks and `docker stats` memory numbers from the live
-instance.
+- Backend API: unaffected, confirmed live (`/health` 200, `/docs` 200).
+- `/` on port 80: `404` — expected, old nginx config still active (no
+  marketing-site routing deployed yet).
+- `:8081`: connection refused/timeout — expected, old nginx config
+  doesn't listen there yet (though the security group now allows it).
+- Live containers on the instance (via SSM `docker ps`): only
+  `postgres`, `redis`, `backend`, `celery-worker`, `nginx`, all on the
+  `c288ca4...` (task 0011) image tag — no admin-web/marketing-site yet.
+- Memory (`free -h`): 470Mi used / 3.7Gi total / 2.6Gi free — plenty of
+  headroom for two more small Next.js containers once they do deploy.
+- Per-container `docker stats` (current, pre-task-0013 baseline):
+  backend 97MiB, celery-worker 91MiB, postgres 60MiB, redis 13MiB,
+  nginx 9MiB — all well under 1% of the 3.75GiB container memory limit
+  each. Re-check after admin-web/marketing-site actually land.
+
+This task's own deliverables (Dockerfiles, compose, nginx, deploy.yml,
+Terraform, docs) are complete, correct, and pushed — but **the live
+deploy and its "real browser-viewable URL" verification cannot be
+finished until the unrelated backend blocker above is resolved by
+another task.**
