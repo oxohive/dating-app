@@ -1,7 +1,6 @@
-import { useNavigation } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
-import type { RootNavigationProp } from '../../../app/navigation/RootNavigator';
+import { navigate } from '../../../app/navigation/navigationRef';
 import { resolveNotificationNavigationTarget } from '../notificationNavigation';
 
 /**
@@ -12,10 +11,13 @@ import { resolveNotificationNavigationTarget } from '../notificationNavigation';
  * SubscriptionStatus) plus the two new screens this subtask adds
  * (IncomingLikes, and — not a tap target itself —
  * NotificationPreferences).
+ *
+ * Uses the shared `navigationRef` (not `useNavigation()`): this hook runs
+ * inside `NotificationsBootstrap`, which is mounted as a sibling of
+ * `RootNavigator` rather than a screen inside it, so there's no navigator
+ * context for `useNavigation()` to attach to.
  */
 export function useNotificationTapNavigation(): void {
-  const navigation = useNavigation<RootNavigationProp>();
-
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as Record<string, unknown> | undefined;
@@ -26,12 +28,12 @@ export function useNotificationTapNavigation(): void {
       }
 
       if (target.screen === 'Conversation') {
-        navigation.navigate('Conversation', target.params);
+        navigate('Conversation', target.params);
       } else {
-        navigation.navigate(target.screen);
+        navigate(target.screen);
       }
     });
 
     return () => subscription.remove();
-  }, [navigation]);
+  }, []);
 }

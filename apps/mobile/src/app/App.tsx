@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { NotificationsBootstrap } from '../features/notifications/components/NotificationsBootstrap';
 import { ServerWakeGate } from '../features/server-wake/components/ServerWakeGate';
+import { navigationRef } from './navigation/navigationRef';
 import { RootNavigator } from './navigation/RootNavigator';
 
 const queryClient = new QueryClient();
@@ -24,7 +25,7 @@ export function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <NavigationContainer>
+          <NavigationContainer ref={navigationRef}>
             <ServerWakeGate>
               <RootNavigator />
               <NotificationsBootstrap />
