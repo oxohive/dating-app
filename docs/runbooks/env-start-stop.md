@@ -64,11 +64,20 @@ query parameter:
   instance's **current public IP** over plain HTTP.
 - Wrong or missing secret → `403 Forbidden`.
 
-**Known limitation:** there's no stable DNS/domain or Elastic IP for the
-pilot yet, so the redirect target is whatever public IP the instance
-happens to have *right now* — this can change across every stop/start
-cycle. This is a deliberate simplification for the pilot, not a bug; a
-stable hostname is out of scope for this task.
+**Static public IP (task 0011):** the pilot instance has a static AWS
+Elastic IP associated with it: **`15.206.247.148`**. This address is
+allocated to the account (`aws_eip.pilot` in
+`infra/terraform/envs/pilot/main.tf`) and no longer changes across
+stop/start cycles — previously (before task 0011) the instance used AWS's
+standard ephemeral public IP, which was released and reassigned to a new,
+different address on every stop/start, so the pilot's public URL used to
+change constantly. That is no longer the case: `http://15.206.247.148/` is
+now a stable URL for the pilot, and `lambda/env-wake/handler.py`'s "already
+running" redirect target (described above) now resolves to this same
+constant address every time, since it looks up the instance's current
+public IP dynamically — which is simply this Elastic IP now. Confirmed by
+terraform output `static_public_ip` and a live stop/start cycle during
+task 0011 (the address was unchanged before and after).
 
 **Rotating the secret:** the secret is a Terraform-managed `random_password`
 stored in the SSM parameter above.

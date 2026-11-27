@@ -7,6 +7,11 @@ output "instance_public_ip" {
   value = module.ec2_app.public_ip
 }
 
+output "static_public_ip" {
+  description = "Static Elastic IP associated with the pilot instance (task 0011). Unlike instance_public_ip, this does not change across stop/start."
+  value       = aws_eip.pilot.public_ip
+}
+
 output "media_bucket_id" {
   value = module.s3.media_bucket_id
 }

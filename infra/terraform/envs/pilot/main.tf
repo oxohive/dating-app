@@ -493,3 +493,32 @@ resource "aws_lambda_permission" "allow_public_invoke_function_env_wake" {
   function_name = aws_lambda_function.env_wake.function_name
   principal     = "*"
 }
+
+# --- Task 0011 addition: static Elastic IP for the pilot instance ---
+#
+# Additive only. Before this, aws_instance.app's public_ip was AWS's
+# standard ephemeral public IP: it's released back to AWS's pool on every
+# stop and a new (different) one is assigned on the next start, so the
+# pilot's public URL changed every stop/start cycle (including the idle
+# auto-stop from task 0005 and the fixed env-scheduler cron). An Elastic IP
+# is a static address allocated to this account and associated with the
+# instance; it stays the same across stop/start and is only released if
+# this aws_eip resource itself is destroyed. Associating it directly via
+# the `instance` attribute here (rather than a separate
+# aws_eip_association resource) re-associates the address on an
+# already-running instance in place -- it does not replace or restart
+# aws_instance.app.
+#
+# Cost note (see tasks/0011-static-public-ip/plan.md): an EIP is free while
+# associated with a *running* instance, but AWS charges a small idle fee
+# while it's associated with a *stopped* instance -- a small adder on top
+# of the existing pilot budget, accepted in exchange for a stable URL.
+resource "aws_eip" "pilot" {
+  domain   = "vpc"
+  instance = module.ec2_app.instance_id
+
+  tags = {
+    Name    = "dating-app-pilot-static-ip"
+    Purpose = "stable-public-url-across-stop-start"
+  }
+}
