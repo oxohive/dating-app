@@ -274,6 +274,37 @@ resource "aws_iam_role_policy" "gha_deploy_ssm_db_password" {
   policy = data.aws_iam_policy_document.gha_deploy_ssm_db_password.json
 }
 
+# --- Task 0019 addition: OTP SMS provider credentials ---
+#
+# Additive only. Grants the GitHub Actions deploy role read access to the
+# five SSM parameters backing real OTP SMS delivery (Twilio + the
+# temporary/testing-only TextBee fallback — see
+# services/backend/packages/api/features/auth/otp_service.py and
+# docs/runbooks/env-start-stop.md). The deploy step fetches all five in
+# one batched call, which uses the plural `ssm:GetParameters` action
+# (distinct from the singular `ssm:GetParameter` the db_password grant
+# above uses) — both are granted here so either call shape works.
+
+data "aws_iam_policy_document" "gha_deploy_ssm_otp_sms_credentials" {
+  statement {
+    sid     = "ReadOtpSmsProviderParameters"
+    actions = ["ssm:GetParameter", "ssm:GetParameters"]
+    resources = [
+      "arn:aws:ssm:ap-south-1:767398004313:parameter/dating-app/pilot/twilio_api_key_sid",
+      "arn:aws:ssm:ap-south-1:767398004313:parameter/dating-app/pilot/twilio_api_key_secret",
+      "arn:aws:ssm:ap-south-1:767398004313:parameter/dating-app/pilot/twilio_from_number",
+      "arn:aws:ssm:ap-south-1:767398004313:parameter/dating-app/pilot/textbee_device_id",
+      "arn:aws:ssm:ap-south-1:767398004313:parameter/dating-app/pilot/textbee_api_key",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "gha_deploy_ssm_otp_sms_credentials" {
+  name   = "${module.iam.deploy_role_name}-ssm-otp-sms-credentials"
+  role   = module.iam.deploy_role_name
+  policy = data.aws_iam_policy_document.gha_deploy_ssm_otp_sms_credentials.json
+}
+
 data "aws_iam_policy_document" "app_instance_artifact_bucket_read" {
   statement {
     sid       = "ListDeployPrefixInArtifactBucket"

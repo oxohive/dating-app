@@ -176,7 +176,19 @@ jobs:
         # is deliberately NO SSM parameter for TWILIO_ACCOUNT_SID yet --
         # see docs/runbooks/env-start-stop.md -- so it is rendered as an
         # empty value below rather than fetched here.
+        #
+        # Deliberately non-fatal: the `ssm:GetParameters` grant for these
+        # five parameters is written in
+        # infra/terraform/envs/pilot/main.tf (gha_deploy_ssm_otp_sms_credentials)
+        # but has not been `terraform apply`'d yet (needs an operator with
+        # AWS apply permission -- see tasks/0019-real-otp-sms-delivery/status.md).
+        # Until that apply happens, this call fails AccessDenied; `set +e`
+        # around it means that failure degrades to empty credentials
+        # (Twilio/TextBee unconfigured -> otp_service.py's log-only stub
+        # fallback) instead of failing the entire deploy for every
+        # unrelated change on `main`.
         run: |
+          set +e
           PARAMS_JSON=$(aws ssm get-parameters \
             --names \
               /dating-app/pilot/twilio_api_key_sid \
@@ -187,7 +199,14 @@ jobs:
             --with-decryption \
             --query "Parameters" \
             --output json \
-            --region "$AWS_REGION")
+            --region "$AWS_REGION" 2>&1)
+          FETCH_STATUS=$?
+          set -e
+
+          if [ "$FETCH_STATUS" -ne 0 ]; then
+            echo "::warning::Could not fetch OTP SMS provider credentials from SSM (exit $FETCH_STATUS): $PARAMS_JSON -- Twilio/TextBee env vars will be empty this deploy; otp_service.py falls back to its log-only OTP stub, so OTP requests still succeed."
+            PARAMS_JSON="[]"
+          fi
 
           get_param() {
             echo "$PARAMS_JSON" | jq -r --arg name "$1" '.[] | select(.Name == $name) | .Value'
