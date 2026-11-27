@@ -57,39 +57,332 @@ TERMINAL_STATE = "terminated"
 RETRY_SECONDS = 5
 
 _WAITING_PAGE = """<!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta http-equiv="refresh" content="{retry_seconds}">
-  <title>Starting the pilot app...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Starting the pilot app&hellip;</title>
+  <style>
+    :root {{
+      color-scheme: dark;
+    }}
+    * {{
+      box-sizing: border-box;
+    }}
+    html, body {{
+      margin: 0;
+      padding: 0;
+    }}
+    body {{
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background: radial-gradient(circle at 50% -10%, #241a28 0%, #120f16 45%, #0a090d 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #f5f4f6;
+    }}
+    .card {{
+      width: 100%;
+      max-width: 26rem;
+      background: #1c1a21;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1.25rem;
+      box-shadow: 0 25px 60px -20px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(229, 29, 87, 0.12);
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }}
+    .brand {{
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1.75rem;
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: 0.01em;
+      color: #d4d1d8;
+    }}
+    .brand svg {{
+      flex-shrink: 0;
+    }}
+    .spinner {{
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 1.5rem;
+      border-radius: 50%;
+      border: 4px solid rgba(229, 29, 87, 0.15);
+      border-top-color: #e51d57;
+      animation: spin 0.85s linear infinite;
+    }}
+    @keyframes spin {{
+      to {{
+        transform: rotate(360deg);
+      }}
+    }}
+    h1 {{
+      margin: 0 0 0.6rem;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #ffffff;
+    }}
+    p.lead {{
+      margin: 0 0 1.5rem;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: #b9b4c0;
+    }}
+    .progress-track {{
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.08);
+      margin-bottom: 1.5rem;
+    }}
+    .progress-fill {{
+      height: 100%;
+      width: 35%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #f8406a, #e51d57);
+      animation: indeterminate 1.7s ease-in-out infinite;
+    }}
+    @keyframes indeterminate {{
+      0% {{
+        transform: translateX(-110%);
+      }}
+      100% {{
+        transform: translateX(290%);
+      }}
+    }}
+    p.hint {{
+      margin: 0 0 1.25rem;
+      font-size: 0.85rem;
+      color: #8d8796;
+    }}
+    .debug {{
+      margin: 0;
+      font-size: 0.75rem;
+      color: #5c5664;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 1rem;
+    }}
+  </style>
 </head>
-<body style="font-family: sans-serif; max-width: 32rem; margin: 4rem auto; text-align: center;">
-  <h1>Starting the app</h1>
-  <p>This takes about a minute. This page will retry automatically every
-  {retry_seconds} seconds.</p>
-  <p style="color: #666;">Instance state: {state}</p>
+<body>
+  <div class="card">
+    <div class="brand">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="#e51d57" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 21s-6.7-4.35-9.33-8.2C1.1 10.77 1 8.99 2.02 7.36 3.04 5.74 4.84 5 6.5 5c1.54 0 2.94.78 3.9 2.02C11.06 5.78 12.46 5 14 5c1.66 0 3.46.74 4.48 2.36 1.02 1.63.92 3.41-.65 5.44C18.7 16.65 12 21 12 21z"/></svg>
+      Dating App
+    </div>
+    <div class="spinner" role="presentation"></div>
+    <h1>Starting the app</h1>
+    <p class="lead">The server was idle and is starting back up. This page
+    refreshes automatically &mdash; no action needed.</p>
+    <div class="progress-track">
+      <div class="progress-fill"></div>
+    </div>
+    <p class="hint">Usually ready within about a minute. Checking again
+    every {retry_seconds} seconds&hellip;</p>
+    <p class="debug">Instance state: {state}</p>
+  </div>
 </body>
 </html>
 """
 
 _ERROR_PAGE = """<!doctype html>
-<html>
-<head><meta charset="utf-8"><title>Cannot wake instance</title></head>
-<body style="font-family: sans-serif; max-width: 32rem; margin: 4rem auto; text-align: center;">
-  <h1>Cannot wake the instance</h1>
-  <p>Instance state is <code>{state}</code>, which this endpoint cannot
-  recover from automatically. Check the AWS console or contact an
-  operator.</p>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cannot wake instance</title>
+  <style>
+    :root {{
+      color-scheme: dark;
+    }}
+    * {{
+      box-sizing: border-box;
+    }}
+    html, body {{
+      margin: 0;
+      padding: 0;
+    }}
+    body {{
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background: radial-gradient(circle at 50% -10%, #241a28 0%, #120f16 45%, #0a090d 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #f5f4f6;
+    }}
+    .card {{
+      width: 100%;
+      max-width: 26rem;
+      background: #1c1a21;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1.25rem;
+      box-shadow: 0 25px 60px -20px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(243, 97, 7, 0.14);
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }}
+    .brand {{
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1.75rem;
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: 0.01em;
+      color: #d4d1d8;
+    }}
+    .brand svg {{
+      flex-shrink: 0;
+    }}
+    .icon-circle {{
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 1.5rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(243, 97, 7, 0.14);
+    }}
+    h1 {{
+      margin: 0 0 0.6rem;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #ffffff;
+    }}
+    p.lead {{
+      margin: 0 0 1.25rem;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: #b9b4c0;
+    }}
+    code {{
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 0.3rem;
+      padding: 0.1rem 0.4rem;
+      font-size: 0.9em;
+      color: #ffc171;
+    }}
+    .debug {{
+      margin: 1.25rem 0 0;
+      font-size: 0.75rem;
+      color: #5c5664;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 1rem;
+    }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="#e51d57" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 21s-6.7-4.35-9.33-8.2C1.1 10.77 1 8.99 2.02 7.36 3.04 5.74 4.84 5 6.5 5c1.54 0 2.94.78 3.9 2.02C11.06 5.78 12.46 5 14 5c1.66 0 3.46.74 4.48 2.36 1.02 1.63.92 3.41-.65 5.44C18.7 16.65 12 21 12 21z"/></svg>
+      Dating App
+    </div>
+    <div class="icon-circle">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7d12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+    </div>
+    <h1>Cannot wake the instance</h1>
+    <p class="lead">This endpoint cannot recover from this state
+    automatically. Check the AWS console or contact an operator.</p>
+    <p class="debug">Instance state: <code>{state}</code></p>
+  </div>
 </body>
 </html>
 """
 
 _FORBIDDEN_PAGE = """<!doctype html>
-<html>
-<head><meta charset="utf-8"><title>Forbidden</title></head>
-<body style="font-family: sans-serif; max-width: 32rem; margin: 4rem auto; text-align: center;">
-  <h1>Forbidden</h1>
-  <p>Missing or incorrect shared secret.</p>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Forbidden</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background: radial-gradient(circle at 50% -10%, #241a28 0%, #120f16 45%, #0a090d 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #f5f4f6;
+    }
+    .card {
+      width: 100%;
+      max-width: 26rem;
+      background: #1c1a21;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1.25rem;
+      box-shadow: 0 25px 60px -20px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(229, 29, 87, 0.12);
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1.75rem;
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: 0.01em;
+      color: #d4d1d8;
+    }
+    .brand svg {
+      flex-shrink: 0;
+    }
+    .icon-circle {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 1.5rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(229, 29, 87, 0.12);
+    }
+    h1 {
+      margin: 0 0 0.6rem;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    p.lead {
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: #b9b4c0;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="#e51d57" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 21s-6.7-4.35-9.33-8.2C1.1 10.77 1 8.99 2.02 7.36 3.04 5.74 4.84 5 6.5 5c1.54 0 2.94.78 3.9 2.02C11.06 5.78 12.46 5 14 5c1.66 0 3.46.74 4.48 2.36 1.02 1.63.92 3.41-.65 5.44C18.7 16.65 12 21 12 21z"/></svg>
+      Dating App
+    </div>
+    <div class="icon-circle">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e51d57" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+    </div>
+    <h1>Forbidden</h1>
+    <p class="lead">Missing or incorrect shared secret.</p>
+  </div>
 </body>
 </html>
 """
