@@ -49,6 +49,16 @@ services:
       REDIS_URL: ${REDIS_URL}
       CELERY_BROKER_URL: ${REDIS_URL}
       CELERY_RESULT_BACKEND: ${REDIS_URL}
+      # Task 0019: OTP SMS delivery (Twilio primary, TextBee
+      # temporary/testing-only fallback). TWILIO_ACCOUNT_SID has no SSM
+      # parameter yet, so .env.pilot renders it empty -- otp_service.py
+      # treats that as "skip Twilio, use TextBee" and never errors.
+      TWILIO_API_KEY_SID: ${TWILIO_API_KEY_SID}
+      TWILIO_API_KEY_SECRET: ${TWILIO_API_KEY_SECRET}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER}
+      TEXTBEE_DEVICE_ID: ${TEXTBEE_DEVICE_ID}
+      TEXTBEE_API_KEY: ${TEXTBEE_API_KEY}
     depends_on:
       postgres:
         condition: service_healthy

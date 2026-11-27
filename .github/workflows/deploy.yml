@@ -167,6 +167,51 @@ jobs:
           echo "::add-mask::$VALUE"
           echo "value=$VALUE" >> "$GITHUB_OUTPUT"
 
+      - name: Fetch OTP SMS provider credentials from SSM
+        id: otp-sms-credentials
+        # Task 0019: Twilio (primary) + TextBee (temporary testing-only
+        # fallback) credentials for real OTP SMS delivery. Same SSM ->
+        # masked step-output pattern as the db-password step above, just
+        # batched into one `get-parameters` call for all five. Note there
+        # is deliberately NO SSM parameter for TWILIO_ACCOUNT_SID yet --
+        # see docs/runbooks/env-start-stop.md -- so it is rendered as an
+        # empty value below rather than fetched here.
+        run: |
+          PARAMS_JSON=$(aws ssm get-parameters \
+            --names \
+              /dating-app/pilot/twilio_api_key_sid \
+              /dating-app/pilot/twilio_api_key_secret \
+              /dating-app/pilot/twilio_from_number \
+              /dating-app/pilot/textbee_device_id \
+              /dating-app/pilot/textbee_api_key \
+            --with-decryption \
+            --query "Parameters" \
+            --output json \
+            --region "$AWS_REGION")
+
+          get_param() {
+            echo "$PARAMS_JSON" | jq -r --arg name "$1" '.[] | select(.Name == $name) | .Value'
+          }
+
+          TWILIO_API_KEY_SID=$(get_param "/dating-app/pilot/twilio_api_key_sid")
+          TWILIO_API_KEY_SECRET=$(get_param "/dating-app/pilot/twilio_api_key_secret")
+          TWILIO_FROM_NUMBER=$(get_param "/dating-app/pilot/twilio_from_number")
+          TEXTBEE_DEVICE_ID=$(get_param "/dating-app/pilot/textbee_device_id")
+          TEXTBEE_API_KEY=$(get_param "/dating-app/pilot/textbee_api_key")
+
+          echo "::add-mask::$TWILIO_API_KEY_SID"
+          echo "::add-mask::$TWILIO_API_KEY_SECRET"
+          echo "::add-mask::$TEXTBEE_DEVICE_ID"
+          echo "::add-mask::$TEXTBEE_API_KEY"
+          # TWILIO_FROM_NUMBER is a plain (non-Secure) SSM parameter, not a
+          # secret, so it is not masked.
+
+          echo "twilio_api_key_sid=$TWILIO_API_KEY_SID" >> "$GITHUB_OUTPUT"
+          echo "twilio_api_key_secret=$TWILIO_API_KEY_SECRET" >> "$GITHUB_OUTPUT"
+          echo "twilio_from_number=$TWILIO_FROM_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "textbee_device_id=$TEXTBEE_DEVICE_ID" >> "$GITHUB_OUTPUT"
+          echo "textbee_api_key=$TEXTBEE_API_KEY" >> "$GITHUB_OUTPUT"
+
       - name: Render .env.pilot
         env:
           POSTGRES_DB: dating_app
@@ -176,6 +221,11 @@ jobs:
           # read back from that step's outputs rather than redefined here.
           REGISTRY: ${{ steps.build-push.outputs.registry }}
           IMAGE_TAG: ${{ steps.build-push.outputs.image_tag }}
+          TWILIO_API_KEY_SID: ${{ steps.otp-sms-credentials.outputs.twilio_api_key_sid }}
+          TWILIO_API_KEY_SECRET: ${{ steps.otp-sms-credentials.outputs.twilio_api_key_secret }}
+          TWILIO_FROM_NUMBER: ${{ steps.otp-sms-credentials.outputs.twilio_from_number }}
+          TEXTBEE_DEVICE_ID: ${{ steps.otp-sms-credentials.outputs.textbee_device_id }}
+          TEXTBEE_API_KEY: ${{ steps.otp-sms-credentials.outputs.textbee_api_key }}
         run: |
           cat > "$RUNNER_TEMP/.env.pilot" <<EOF
           POSTGRES_DB=${POSTGRES_DB}
@@ -186,6 +236,17 @@ jobs:
           BACKEND_IMAGE=${REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
           ADMIN_WEB_IMAGE=${REGISTRY}/${ECR_ADMIN_WEB_REPOSITORY}:${IMAGE_TAG}
           MARKETING_SITE_IMAGE=${REGISTRY}/${ECR_MARKETING_SITE_REPOSITORY}:${IMAGE_TAG}
+          TWILIO_API_KEY_SID=${TWILIO_API_KEY_SID}
+          TWILIO_API_KEY_SECRET=${TWILIO_API_KEY_SECRET}
+          # No SSM parameter exists yet for TWILIO_ACCOUNT_SID -- intentionally
+          # rendered empty. otp_service.py treats this as "skip Twilio, use
+          # TextBee" and never errors on it. Add the SSM parameter (and a
+          # fetch step above) once an account SID is available; no code
+          # change will be needed in otp_service.py at that point.
+          TWILIO_ACCOUNT_SID=
+          TWILIO_FROM_NUMBER=${TWILIO_FROM_NUMBER}
+          TEXTBEE_DEVICE_ID=${TEXTBEE_DEVICE_ID}
+          TEXTBEE_API_KEY=${TEXTBEE_API_KEY}
           EOF
 
       - name: Upload deploy assets to S3

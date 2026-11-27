@@ -155,6 +155,31 @@ change — only the `?secret=` value does). Anyone with the old link stops
 working immediately after the apply; redistribute the new `...?secret=...`
 URL to whoever needs it.
 
+## OTP SMS delivery credentials (task 0019)
+
+`send_otp_sms` (`services/backend/packages/api/features/auth/otp_service.py`)
+tries Twilio, then TextBee, then falls back to the original log-only stub.
+Credentials for both providers live in SSM under `/dating-app/pilot/`
+(`twilio_api_key_sid`, `twilio_api_key_secret`, `twilio_from_number`,
+`textbee_device_id`, `textbee_api_key`), fetched into `.env.pilot` by
+`.github/workflows/deploy.yml` the same way the DB password is, and passed
+into the `backend` container via `infra/docker-compose/docker-compose.pilot.yml`.
+
+- **Twilio is dormant right now.** There is no `TWILIO_ACCOUNT_SID` SSM
+  parameter yet (Twilio's API requires it alongside the API Key SID/Secret),
+  so `.env.pilot` renders it empty and `otp_service.py` skips Twilio
+  entirely and falls through to TextBee. Adding
+  `/dating-app/pilot/twilio_account_sid` to SSM and wiring it into the same
+  deploy step/compose `environment:` block activates Twilio with **no
+  code change**.
+- **TextBee is an intentional, temporary, testing-only fallback** — a
+  phone-based SMS relay (https://github.com/vernu/textbee), not a durable
+  or production-grade SMS provider (single point of failure if that phone
+  is off/offline, ordinary-carrier rate limits). It is what actually
+  delivers OTP SMS today. Remove it once a durable SMS strategy (e.g.
+  Twilio fully wired, or another provider) is chosen for real production
+  traffic.
+
 ## Option A: `workflow_dispatch` (preferred)
 
 If a workflow is set up for manual start/stop (check
