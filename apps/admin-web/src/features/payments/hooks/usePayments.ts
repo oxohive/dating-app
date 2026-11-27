@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { listPayments, Payment, PaymentStatusFilter } from "@/features/payments/api/payments.api";
+import { listPayments, Payment, PaymentStatusFilter, refundPayment } from "@/features/payments/api/payments.api";
+import { applyPaymentRefund } from "@/features/payments/lib/applyPaymentRefund";
 import { ApiError } from "@/lib/apiClient";
 
 export interface UsePaymentsResult {
@@ -10,6 +11,7 @@ export interface UsePaymentsResult {
   error: string | null;
   statusFilter: PaymentStatusFilter;
   setStatusFilter: (filter: PaymentStatusFilter) => void;
+  refund: (paymentId: string) => Promise<void>;
 }
 
 /**
@@ -40,5 +42,15 @@ export function usePayments(): UsePaymentsResult {
     load(statusFilter);
   }, [load, statusFilter]);
 
-  return { payments, loading, error, statusFilter, setStatusFilter };
+  const refund = useCallback(async (paymentId: string) => {
+    setError(null);
+    try {
+      const updated = await refundPayment(paymentId);
+      setPayments((current) => applyPaymentRefund(current, updated));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not refund this payment. Please try again.");
+    }
+  }, []);
+
+  return { payments, loading, error, statusFilter, setStatusFilter, refund };
 }

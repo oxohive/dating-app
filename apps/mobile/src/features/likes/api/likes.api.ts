@@ -1,5 +1,85 @@
 import { apiClient, ApiError } from '../../../core/apiClient';
 
+/**
+ * Wave 3, subtask M4 — "see who liked you" (`tasks/0012-wave3-engagement-and-lifecycle/plan.md`).
+ * Reconciled during integration against B8's landed `GET /likes/incoming`
+ * response shape:
+ *  `{ is_premium: boolean, count: number, likes: [{ profile: { id,
+ *    display_name, photo_url }, liked_at }, ...] }`.
+ * `likes` is always `[]` when `is_premium` is false — there is no separate
+ * discriminated-union shape on the wire; `is_premium`/`count` are always
+ * present and `likes` just happens to be empty for free users.
+ */
+
+export type IncomingLikerProfile = {
+  id: string;
+  displayName: string;
+  photoUrl: string | null;
+};
+
+export type IncomingLiker = {
+  profile: IncomingLikerProfile;
+  likedAt: string;
+};
+
+export type IncomingLikesResult = {
+  isPremium: boolean;
+  count: number;
+  likers: IncomingLiker[];
+};
+
+type IncomingLikesApiResponse = {
+  is_premium: boolean;
+  count: number;
+  likes: {
+    profile: { id: string; display_name: string; photo_url: string | null };
+    liked_at: string;
+  }[];
+};
+
+/**
+ * Maps the wire-shape `GET /likes/incoming` response to `IncomingLikesResult`.
+ * Pulled out as a standalone function (same pattern as
+ * `mapSubscriptionPlan` in `subscriptions.api.ts`) so the mapping is
+ * independently testable without mocking `apiClient`.
+ */
+export function mapIncomingLikesResponse(response: IncomingLikesApiResponse): IncomingLikesResult {
+  return {
+    isPremium: response.is_premium,
+    count: response.count,
+    likers: response.likes.map((item) => ({
+      profile: {
+        id: item.profile.id,
+        displayName: item.profile.display_name,
+        photoUrl: item.profile.photo_url,
+      },
+      likedAt: item.liked_at,
+    })),
+  };
+}
+
+/**
+ * `GET /likes/incoming` — "see who liked you". The backend decides which
+ * branch to return based on `has_active_premium`; the client never derives
+ * this itself, it just renders whichever shape comes back.
+ */
+export async function fetchIncomingLikes(): Promise<IncomingLikesResult> {
+  const response = await apiClient.get<IncomingLikesApiResponse>('/likes/incoming');
+  return mapIncomingLikesResponse(response);
+}
+
+/**
+ * Teaser copy for the free/locked state, e.g. "3 people liked you" /
+ * "1 person liked you". Pure so the pluralization is testable without
+ * rendering the banner.
+ */
+export function describeIncomingLikesTeaser(count: number): string {
+  if (count === 0) {
+    return 'No one has liked you yet.';
+  }
+  return `${count} ${count === 1 ? 'person' : 'people'} liked you — upgrade to see who.`;
+}
+
 export type LikeQuota = {
   used: number;
   limit: number;

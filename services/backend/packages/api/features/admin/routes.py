@@ -20,6 +20,7 @@ from packages.api.core.database import get_db
 from packages.api.features.admin import admin_service, validation
 from packages.api.features.admin.dependencies import require_admin
 from packages.api.features.admin.schemas import (
+    AdminAuditLogOut,
     PaymentAdminOut,
     ReportAdminOut,
     ResolveReportRequest,
@@ -62,9 +63,9 @@ def get_users(
 @router.post(
     "/users/{user_id}/suspend", status_code=status.HTTP_204_NO_CONTENT, response_model=None
 )
-def suspend_user(user_id: uuid.UUID, db: DbSession, _admin: AdminUser) -> None:
+def suspend_user(user_id: uuid.UUID, db: DbSession, admin: AdminUser) -> None:
     """Suspend a user by setting `is_active = False`."""
-    admin_service.suspend_user(db, user_id)
+    admin_service.suspend_user(db, user_id, admin.id)
 
 
 @router.get("/reports", response_model=list[ReportAdminOut])
@@ -84,10 +85,10 @@ def resolve_report(
     report_id: uuid.UUID,
     body: ResolveReportRequest,
     db: DbSession,
-    _admin: AdminUser,
+    admin: AdminUser,
 ) -> ReportAdminOut:
     """Resolve a report with a free-text moderator `action`."""
-    report = admin_service.resolve_report(db, report_id, body.action)
+    report = admin_service.resolve_report(db, report_id, body.action, admin.id)
     return ReportAdminOut.model_validate(report)
 
 
@@ -174,3 +175,34 @@ def get_payments(
     cleaned_status = validation.validate_payment_status(status_filter)
     payments = admin_service.list_payments(db, cleaned_status)
     return [PaymentAdminOut.model_validate(payment) for payment in payments]
+
+
+@router.post("/payments/{payment_id}/refund", response_model=PaymentAdminOut)
+def refund_payment(
+    payment_id: uuid.UUID,
+    db: DbSession,
+    admin: AdminUser,
+) -> PaymentAdminOut:
+    """Refund a payment, per task 0012's refund-workflow contract.
+
+    See `admin_service.refund_payment` for exactly which subscription (if
+    any) is also cancelled -- always and only the one this payment's own
+    `subscription_id` points to, and only if it's still active. 404 if the
+    payment doesn't exist.
+    """
+    payment = admin_service.refund_payment(db, payment_id, admin.id)
+    return PaymentAdminOut.model_validate(payment)
+
+
+@router.get("/audit-log", response_model=list[AdminAuditLogOut])
+def get_audit_log(
+    db: DbSession,
+    _admin: AdminUser,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[AdminAuditLogOut]:
+    """List admin audit-log entries, newest first (simple limit/offset
+    pagination -- admin-web's audit view, task 0012, subtask W3).
+    """
+    rows = admin_service.list_audit_log(db, limit=limit, offset=offset)
+    return [AdminAuditLogOut.model_validate(row) for row in rows]

@@ -92,6 +92,7 @@ export function ProfileScreen() {
         />
         <Button label="Subscription" onPress={() => navigation.navigate('SubscriptionStatus')} variant="secondary" />
         <Button label="Verification" onPress={() => navigation.navigate('VerificationStatus')} variant="secondary" />
+        <Button label="Notification preferences" onPress={() => navigation.navigate('NotificationPreferences')} variant="secondary" />
       </View>
       <Button disabled={isLoggingOut} label="Log out" onPress={logOut} variant="secondary" />
     </ScreenContainer>

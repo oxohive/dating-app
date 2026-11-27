@@ -25,13 +25,17 @@ from packages.api.core.database import Base
 # `Payment`, and `Verification` respectively -- all three are imported here
 # now so autogenerate actually sees their tables (see
 # tasks/0010-wave2-deferred-features/plan.md's validator finding #5 for the
-# failure mode this avoids: a silently-incomplete migration).
+# failure mode this avoids: a silently-incomplete migration). Task 0012
+# (Wave 3) adds `admin` (`AdminAuditLog`) and `notifications` (`PushToken`,
+# `NotificationPreference`) to this same list, for the same reason.
+from packages.api.features.admin import models as admin_models  # noqa: E402,F401
 from packages.api.features.auth import models as auth_models  # noqa: E402,F401
 from packages.api.features.discovery import models as discovery_models  # noqa: E402,F401
 from packages.api.features.likes import models as likes_models  # noqa: E402,F401
 from packages.api.features.location import models as location_models  # noqa: E402,F401
 from packages.api.features.matches import models as matches_models  # noqa: E402,F401
 from packages.api.features.messaging import models as messaging_models  # noqa: E402,F401
+from packages.api.features.notifications import models as notifications_models  # noqa: E402,F401
 from packages.api.features.profiles import models as profiles_models  # noqa: E402,F401
 from packages.api.features.safety import models as safety_models  # noqa: E402,F401
 from packages.api.features.subscriptions import models as subscriptions_models  # noqa: E402,F401

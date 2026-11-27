@@ -1,5 +1,6 @@
 """Real tests for the admin feature: require_admin gating, user search,
-suspend, and report list/resolve.
+suspend, report list/resolve, subscription/payment monitoring, the
+payment-refund workflow, and the admin audit log (task 0012, subtask B8).
 """
 from __future__ import annotations
 
@@ -8,8 +9,10 @@ import uuid
 from sqlalchemy.orm import Session as DbSession
 
 from packages.api.features.admin import admin_service
+from packages.api.features.admin.models import AdminAuditLog
 from packages.api.features.auth.models import User
 from packages.api.features.safety.models import Report
+from packages.api.features.subscriptions.models import Payment, Subscription
 from packages.api.features.verification.models import (
     STATUS_APPROVED,
     STATUS_PENDING,
@@ -44,6 +47,8 @@ def test_non_admin_gets_403_on_every_admin_endpoint(client, as_user, db: DbSessi
     assert review_response.status_code == 403
     assert client.get("/admin/subscriptions").status_code == 403
     assert client.get("/admin/payments").status_code == 403
+    assert client.post(f"/admin/payments/{uuid.uuid4()}/refund").status_code == 403
+    assert client.get("/admin/audit-log").status_code == 403
 
 
 def test_admin_user_can_list_users(client, as_user, db: DbSession) -> None:
@@ -459,3 +464,245 @@ def test_admin_payments_invalid_status_is_400(client, as_user, db: DbSession) ->
     response = client.get("/admin/payments", params={"status": "bogus"})
 
     assert response.status_code == 400
+
+
+# --- POST /admin/payments/{id}/refund ---------------------------------------
+
+
+def test_refund_with_linked_active_subscription_cancels_it(
+    client, as_user, db: DbSession
+) -> None:
+    admin = make_user(db, is_admin=True)
+    target, _profile = make_user_and_profile(db)
+    subscription = make_subscription(db, user_id=target.id, status="active")
+    payment = make_payment(
+        db, user_id=target.id, subscription_id=subscription.id, status="succeeded"
+    )
+    as_user(admin)
+
+    response = client.post(f"/admin/payments/{payment.id}/refund")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "refunded"
+
+    db.expire_all()
+    stored_payment = db.get(Payment, payment.id)
+    stored_subscription = db.get(Subscription, subscription.id)
+    assert stored_payment.status == "refunded"
+    assert stored_subscription.status == "cancelled"
+
+
+def test_refund_with_no_linked_subscription_is_noop_on_subscription_side(
+    client, as_user, db: DbSession
+) -> None:
+    admin = make_user(db, is_admin=True)
+    target, _profile = make_user_and_profile(db)
+    payment = make_payment(db, user_id=target.id, subscription_id=None, status="succeeded")
+    as_user(admin)
+
+    response = client.post(f"/admin/payments/{payment.id}/refund")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "refunded"
+    assert response.json()["subscription_id"] is None
+
+    db.expire_all()
+    assert db.get(Payment, payment.id).status == "refunded"
+
+
+def test_refund_with_already_inactive_linked_subscription_leaves_it_unchanged(
+    client, as_user, db: DbSession
+) -> None:
+    admin = make_user(db, is_admin=True)
+    target, _profile = make_user_and_profile(db)
+    subscription = make_subscription(db, user_id=target.id, status="expired")
+    payment = make_payment(
+        db, user_id=target.id, subscription_id=subscription.id, status="succeeded"
+    )
+    as_user(admin)
+
+    response = client.post(f"/admin/payments/{payment.id}/refund")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "refunded"
+
+    db.expire_all()
+    # Already-expired subscription must stay exactly as it was -- refund
+    # only ever moves "active" -> "cancelled", never touches any other
+    # status, per plan.md's refund-target contract.
+    assert db.get(Subscription, subscription.id).status == "expired"
+
+
+def test_refund_already_cancelled_linked_subscription_leaves_it_unchanged(
+    client, as_user, db: DbSession
+) -> None:
+    admin = make_user(db, is_admin=True)
+    target, _profile = make_user_and_profile(db)
+    subscription = make_subscription(db, user_id=target.id, status="cancelled")
+    payment = make_payment(
+        db, user_id=target.id, subscription_id=subscription.id, status="succeeded"
+    )
+    as_user(admin)
+
+    response = client.post(f"/admin/payments/{payment.id}/refund")
+
+    assert response.status_code == 200
+    db.expire_all()
+    assert db.get(Subscription, subscription.id).status == "cancelled"
+
+
+def test_refund_uses_the_payments_own_subscription_not_users_other_subscriptions(
+    client, as_user, db: DbSession
+) -> None:
+    """A user can have had multiple subscriptions over time -- the refund
+    must only ever act on *this payment's own* `subscription_id`, never
+    any other active subscription the same user happens to have.
+    """
+    admin = make_user(db, is_admin=True)
+    target, _profile = make_user_and_profile(db)
+    old_subscription = make_subscription(db, user_id=target.id, status="expired")
+    current_subscription = make_subscription(db, user_id=target.id, status="active")
+    payment = make_payment(
+        db, user_id=target.id, subscription_id=old_subscription.id, status="succeeded"
+    )
+    as_user(admin)
+
+    response = client.post(f"/admin/payments/{payment.id}/refund")
+
+    assert response.status_code == 200
+    db.expire_all()
+    # The payment's own (already-expired) subscription stays expired...
+    assert db.get(Subscription, old_subscription.id).status == "expired"
+    # ...and the user's unrelated, currently-active subscription must NOT
+    # be guessed at and cancelled.
+    assert db.get(Subscription, current_subscription.id).status == "active"
+
+
+def test_refund_nonexistent_payment_404s(client, as_user, db: DbSession) -> None:
+    admin = make_user(db, is_admin=True)
+    as_user(admin)
+
+    response = client.post(f"/admin/payments/{uuid.uuid4()}/refund")
+
+    assert response.status_code == 404
+
+
+# --- Admin audit log ---------------------------------------------------------
+
+
+def test_refund_creates_an_audit_log_entry(client, as_user, db: DbSession) -> None:
+    admin = make_user(db, is_admin=True)
+    target, _profile = make_user_and_profile(db)
+    payment = make_payment(db, user_id=target.id, status="succeeded")
+    as_user(admin)
+
+    response = client.post(f"/admin/payments/{payment.id}/refund")
+    assert response.status_code == 200
+
+    db.expire_all()
+    entries = db.query(AdminAuditLog).all()
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.admin_user_id == admin.id
+    assert entry.action == "refund_payment"
+    assert entry.target_type == "payment"
+    assert entry.target_id == str(payment.id)
+    assert entry.created_at is not None
+
+
+def test_suspend_user_creates_an_audit_log_entry(client, as_user, db: DbSession) -> None:
+    admin = make_user(db, is_admin=True)
+    target = make_user(db, is_active=True)
+    as_user(admin)
+
+    response = client.post(f"/admin/users/{target.id}/suspend")
+    assert response.status_code == 204
+
+    db.expire_all()
+    entries = db.query(AdminAuditLog).all()
+    assert len(entries) == 1
+    assert entries[0].action == "suspend_user"
+    assert entries[0].admin_user_id == admin.id
+    assert entries[0].target_id == str(target.id)
+
+
+def test_resolve_report_creates_an_audit_log_entry(client, as_user, db: DbSession) -> None:
+    admin = make_user(db, is_admin=True)
+    _reported, reported_profile = make_user_and_profile(db)
+    report = Report(
+        reporter_profile_id=uuid.uuid4(),
+        reported_profile_id=reported_profile.id,
+        reason="spam",
+        status="open",
+    )
+    db.add(report)
+    db.commit()
+    report_id = report.id
+    as_user(admin)
+
+    response = client.post(f"/admin/reports/{report_id}/resolve", json={"action": "banned"})
+    assert response.status_code == 200
+
+    db.expire_all()
+    entries = db.query(AdminAuditLog).all()
+    assert len(entries) == 1
+    assert entries[0].action == "resolve_report"
+    assert entries[0].admin_user_id == admin.id
+    assert entries[0].target_id == str(report_id)
+
+
+def test_review_verification_creates_an_audit_log_entry(client, as_user, db: DbSession) -> None:
+    admin = make_user(db, is_admin=True)
+    _target, profile = make_user_and_profile(db)
+    verification = make_verification(db, profile_id=profile.id, status=STATUS_PENDING)
+    as_user(admin)
+
+    response = client.post(
+        f"/admin/verifications/{verification.id}/review", json={"decision": "approve"}
+    )
+    assert response.status_code == 200
+
+    db.expire_all()
+    entries = db.query(AdminAuditLog).all()
+    assert len(entries) == 1
+    assert entries[0].action == "review_verification"
+    assert entries[0].admin_user_id == admin.id
+    assert entries[0].target_id == str(verification.id)
+
+
+def test_audit_log_listing_endpoint_returns_newest_first(
+    client, as_user, db: DbSession
+) -> None:
+    admin = make_user(db, is_admin=True)
+    first_target = make_user(db, is_active=True)
+    second_target = make_user(db, is_active=True)
+    as_user(admin)
+
+    first_response = client.post(f"/admin/users/{first_target.id}/suspend")
+    second_response = client.post(f"/admin/users/{second_target.id}/suspend")
+    assert first_response.status_code == 204
+    assert second_response.status_code == 204
+
+    response = client.get("/admin/audit-log")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 2
+    # Newest first.
+    assert body[0]["target_id"] == str(second_target.id)
+    assert body[1]["target_id"] == str(first_target.id)
+    for row in body:
+        assert row["admin_user_id"] == str(admin.id)
+        assert row["action"] == "suspend_user"
+        assert "created_at" in row
+
+
+def test_audit_log_listing_empty_when_nothing_recorded(client, as_user, db: DbSession) -> None:
+    admin = make_user(db, is_admin=True)
+    as_user(admin)
+
+    response = client.get("/admin/audit-log")
+
+    assert response.status_code == 200
+    assert response.json() == []

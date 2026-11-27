@@ -24,6 +24,7 @@ from packages.api.features.subscriptions.payment_provider import RAZORPAY_SIGNAT
 from packages.api.features.subscriptions.schemas import (
     CheckoutSessionRequest,
     CheckoutSessionResponse,
+    PaymentOut,
     PlanCatalogueResponse,
     PlanOut,
     SandboxCompleteCheckoutRequest,
@@ -77,6 +78,16 @@ def get_subscription_me(
     if subscription is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     return SubscriptionOut.model_validate(subscription)
+
+
+@router.get("/payments", response_model=list[PaymentOut])
+def get_my_payments(user: CurrentUserDependency, db: DbDependency) -> list[PaymentOut]:
+    """Return the caller's own payment history, newest first (task 0012,
+    subtask B8). Always scoped to the authenticated user -- see
+    `subscriptions_service.list_payments_for_user`.
+    """
+    payments = subscriptions_service.list_payments_for_user(db, user.id)
+    return [PaymentOut.model_validate(payment) for payment in payments]
 
 
 # SANDBOX-ONLY: simulates a Razorpay `payment.captured` webhook so the

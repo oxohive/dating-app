@@ -57,7 +57,7 @@ export default function PaymentsPage() {
           onChange={paymentsState.setStatusFilter}
         />
         {paymentsState.error && <p style={{ color: "#dc2626" }}>{paymentsState.error}</p>}
-        <PaymentTable payments={paymentsState.payments} />
+        <PaymentTable payments={paymentsState.payments} onRefund={paymentsState.refund} />
       </section>
     </RequireAdminAuth>
   );

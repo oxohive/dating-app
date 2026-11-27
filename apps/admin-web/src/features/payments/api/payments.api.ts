@@ -16,15 +16,15 @@ export interface Payment {
 }
 
 /**
- * ASSUMED shape of `PaymentAdminOut` from subtask B4
- * (`services/backend/packages/api/features/subscriptions/**`, not yet
- * landed as of this write). Matches the `payments` table exactly as
- * specified in plan.md: id, subscription_id FK (nullable - a payment can
- * precede subscription activation), user_id FK, provider (e.g.
- * "razorpay"), provider_payment_id, amount_minor_units, currency (default
- * "INR"), status (pending|succeeded|failed|refunded), created_at. This
- * wave has no real Razorpay keys wired (plan.md's "Risks" section) - this
- * view is monitoring/visibility only, never a payment-processing surface.
+ * Confirmed shape of `PaymentAdminOut`, verified field-for-field against
+ * the real schema in
+ * `services/backend/packages/api/features/admin/schemas.py`: id,
+ * subscription_id FK (nullable - a payment can precede subscription
+ * activation), user_id FK, provider (e.g. "razorpay"), provider_payment_id,
+ * amount_minor_units, currency, status (pending|succeeded|failed|refunded),
+ * created_at - exact match, no reconciliation needed. This wave has no real
+ * Razorpay keys wired (plan.md's "Risks" section) - this view is
+ * monitoring/visibility only, never a payment-processing surface.
  */
 interface PaymentAdminApiModel {
   id: string;
@@ -66,7 +66,7 @@ export function buildPaymentsQuery(filter: PaymentStatusFilter): string {
 
 /**
  * Lists payments, optionally filtered by status.
- * ASSUMED endpoint: `GET /admin/payments` (all) or
+ * Confirmed endpoint: `GET /admin/payments` (all) or
  * `GET /admin/payments?status=pending|succeeded|failed|refunded` -> 200
  * list (requires is_admin).
  */
@@ -82,4 +82,22 @@ export async function listPayments(filter: PaymentStatusFilter = "all"): Promise
  */
 export function formatAmount(amountMinorUnits: number, currency: string): string {
   return `${currency} ${(amountMinorUnits / 100).toFixed(2)}`;
+}
+
+/**
+ * Triggers an admin refund for a payment.
+ * Confirmed endpoint (subtask B8,
+ * `services/backend/packages/api/features/admin/**`, now landed):
+ * `POST /admin/payments/{id}/refund` with no request body -> 200
+ * `PaymentAdminOut` with `status: "refunded"` (requires is_admin), verified
+ * against the real route in
+ * `services/backend/packages/api/features/admin/routes.py`. Per plan.md,
+ * the backend also cascades to `Payment.subscription_id`'s subscription
+ * (cancelling it if still active) - that cascade is reflected only in the
+ * payment's own returned status here; this view does not separately
+ * refetch subscriptions after a refund.
+ */
+export async function refundPayment(paymentId: string): Promise<Payment> {
+  const result = await apiClient.post<PaymentAdminApiModel>(`/admin/payments/${paymentId}/refund`);
+  return mapPayment(result);
 }

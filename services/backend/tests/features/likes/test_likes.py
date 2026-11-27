@@ -1,5 +1,5 @@
 """Real tests for the likes feature: quota enforcement, duplicate handling,
-mutual-like match creation.
+mutual-like match creation, and "see who liked you" (task 0012, B8).
 """
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from packages.api.features.likes.quota_service import (
     quota_status,
 )
 from packages.api.features.matches.models import Match
+from packages.api.features.subscriptions.models import Subscription
 
 
 def _backfill_likes(db: DbSession, make_profile, from_profile_id, count: int) -> None:
@@ -175,3 +176,108 @@ def test_quota_endpoint_reports_usage(
     assert body["used"] == 3
     assert body["limit"] == DAILY_LIKE_LIMIT
     assert "resets_at" in body
+
+
+# --- GET /likes/incoming ("see who liked you") ------------------------------
+
+
+def _grant_active_premium(db: DbSession, user_id) -> None:
+    db.add(
+        Subscription(
+            user_id=user_id,
+            plan="monthly",
+            status="active",
+            started_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC) + timedelta(days=30),
+        )
+    )
+    db.commit()
+
+
+def test_incoming_likes_free_user_gets_count_only_no_identities(
+    client, as_profile, db: DbSession, make_profile
+) -> None:
+    me = make_profile()
+    liker_a = make_profile(display_name="Liker A")
+    liker_b = make_profile(display_name="Liker B")
+    db.add(Like(from_profile_id=liker_a.id, to_profile_id=me.id))
+    db.add(Like(from_profile_id=liker_b.id, to_profile_id=me.id))
+    db.commit()
+    as_profile(me)
+
+    response = client.get("/likes/incoming")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_premium"] is False
+    assert body["count"] == 2
+    # No liker identity at all -- not profile_id, not display_name, not
+    # photo_url -- must leak into the free response body.
+    assert body["likes"] == []
+    raw_text = response.text
+    assert "Liker A" not in raw_text
+    assert "Liker B" not in raw_text
+    assert str(liker_a.id) not in raw_text
+    assert str(liker_b.id) not in raw_text
+
+
+def test_incoming_likes_premium_user_gets_full_list(
+    client, as_profile, db: DbSession, make_profile
+) -> None:
+    me = make_profile()
+    _grant_active_premium(db, me.user_id)
+    liker = make_profile(display_name="Liker A")
+    db.add(Like(from_profile_id=liker.id, to_profile_id=me.id))
+    db.commit()
+    as_profile(me)
+
+    response = client.get("/likes/incoming")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_premium"] is True
+    assert body["count"] == 1
+    assert len(body["likes"]) == 1
+    item = body["likes"][0]
+    assert item["profile"]["id"] == str(liker.id)
+    assert item["profile"]["display_name"] == "Liker A"
+    assert "liked_at" in item
+
+
+def test_incoming_likes_zero_when_nobody_has_liked_me(
+    client, as_profile, db: DbSession, make_profile
+) -> None:
+    me = make_profile()
+    as_profile(me)
+
+    response = client.get("/likes/incoming")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_premium"] is False
+    assert body["count"] == 0
+    assert body["likes"] == []
+
+
+def test_incoming_likes_does_not_include_likes_i_sent(
+    client, as_profile, db: DbSession, make_profile
+) -> None:
+    me = make_profile()
+    _grant_active_premium(db, me.user_id)
+    other = make_profile()
+    # I liked `other` -- this must not show up as an incoming like to me.
+    db.add(Like(from_profile_id=me.id, to_profile_id=other.id))
+    db.commit()
+    as_profile(me)
+
+    response = client.get("/likes/incoming")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 0
+    assert body["likes"] == []
+
+
+def test_incoming_likes_requires_auth(client) -> None:
+    response = client.get("/likes/incoming")
+    assert response.status_code == 401

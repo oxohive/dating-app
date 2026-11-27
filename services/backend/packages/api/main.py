@@ -21,6 +21,7 @@ from packages.api.features.likes.routes import router as likes_router
 from packages.api.features.location.routes import router as location_router
 from packages.api.features.matches.routes import router as matches_router
 from packages.api.features.messaging.routes import router as messaging_router
+from packages.api.features.notifications.routes import router as notifications_router
 from packages.api.features.onboarding.routes import router as onboarding_router
 from packages.api.features.profiles.routes import router as profiles_router
 from packages.api.features.safety.routes import router as safety_router
@@ -50,8 +51,5 @@ app.include_router(messaging_router, prefix="", tags=["messaging"])
 app.include_router(safety_router, prefix="", tags=["safety"])
 app.include_router(subscriptions_router, prefix="/subscriptions", tags=["subscriptions"])
 app.include_router(verification_router, prefix="/verification", tags=["verification"])
+app.include_router(notifications_router, prefix="/notifications", tags=["notifications"])
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
-
-# NOTE: features/notifications has no routes.py by design (per spec) — it is
-# a backend-only concern driven by workers/notification_tasks.py, not a
-# directly user-facing HTTP surface, so there is nothing to mount here.

@@ -4,8 +4,10 @@ import { LoginScreen } from '../../features/auth/screens/LoginScreen';
 import { ConversationScreen } from '../../features/messaging/screens/ConversationScreen';
 import { InboxScreen } from '../../features/messaging/screens/InboxScreen';
 import { DiscoveryScreen } from '../../features/discovery/screens/DiscoveryScreen';
+import { IncomingLikesScreen } from '../../features/likes/screens/IncomingLikesScreen';
 import { LikesScreen } from '../../features/likes/screens/LikesScreen';
 import { MatchesScreen } from '../../features/matches/screens/MatchesScreen';
+import { NotificationPreferencesScreen } from '../../features/notifications/screens/NotificationPreferencesScreen';
 import { OnboardingScreen } from '../../features/onboarding/screens/OnboardingScreen';
 import { ProfileScreen } from '../../features/profile/screens/ProfileScreen';
 import type { SubscriptionPlanId } from '../../features/subscriptions/api/subscriptions.api';
@@ -26,6 +28,8 @@ export type RootStackParamList = {
   Discovery: undefined;
   Profile: undefined;
   Likes: undefined;
+  IncomingLikes: undefined;
+  NotificationPreferences: undefined;
   Matches: undefined;
   Inbox: undefined;
   Conversation: { conversationId: string };
@@ -54,6 +58,8 @@ export function RootNavigator() {
       <Stack.Screen component={DiscoveryScreen} name="Discovery" />
       <Stack.Screen component={ProfileScreen} name="Profile" />
       <Stack.Screen component={LikesScreen} name="Likes" />
+      <Stack.Screen component={IncomingLikesScreen} name="IncomingLikes" />
+      <Stack.Screen component={NotificationPreferencesScreen} name="NotificationPreferences" />
       <Stack.Screen component={MatchesScreen} name="Matches" />
       <Stack.Screen component={InboxScreen} name="Inbox" />
       <Stack.Screen component={ConversationScreen} name="Conversation" />

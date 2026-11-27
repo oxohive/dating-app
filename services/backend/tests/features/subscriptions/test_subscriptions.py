@@ -431,3 +431,91 @@ def test_sandbox_complete_checkout_requires_auth(client) -> None:
         json={"plan": "monthly"},
     )
     assert response.status_code == 401
+
+
+# --- GET /payments (task 0012, subtask B8) ----------------------------------
+
+
+def test_payment_history_newest_first(client, as_user, db: DbSession) -> None:
+    # Explicit, clearly-distinct `created_at` values -- SQLite's
+    # `CURRENT_TIMESTAMP` (the `server_default` this column normally
+    # relies on) only has 1-second resolution, so two inserts made back
+    # to back in a fast test run can otherwise tie.
+    user = make_user(db)
+    older = Payment(
+        user_id=user.id,
+        provider="razorpay",
+        provider_payment_id="pay_hist_older",
+        amount_minor_units=9_900,
+        currency="INR",
+        status="succeeded",
+        created_at=datetime.now(UTC) - timedelta(minutes=5),
+    )
+    db.add(older)
+    db.commit()
+    newer = Payment(
+        user_id=user.id,
+        provider="razorpay",
+        provider_payment_id="pay_hist_newer",
+        amount_minor_units=29_900,
+        currency="INR",
+        status="succeeded",
+        created_at=datetime.now(UTC),
+    )
+    db.add(newer)
+    db.commit()
+    as_user(user)
+
+    response = client.get("/subscriptions/payments")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 2
+    assert body[0]["id"] == str(newer.id)
+    assert body[1]["id"] == str(older.id)
+
+
+def test_payment_history_only_shows_own_payments(client, as_user, db: DbSession) -> None:
+    user = make_user(db)
+    other_user = make_user(db)
+    mine = Payment(
+        user_id=user.id,
+        provider="razorpay",
+        provider_payment_id="pay_mine",
+        amount_minor_units=9_900,
+        currency="INR",
+        status="succeeded",
+    )
+    not_mine = Payment(
+        user_id=other_user.id,
+        provider="razorpay",
+        provider_payment_id="pay_not_mine",
+        amount_minor_units=9_900,
+        currency="INR",
+        status="succeeded",
+    )
+    db.add_all([mine, not_mine])
+    db.commit()
+    as_user(user)
+
+    response = client.get("/subscriptions/payments")
+
+    assert response.status_code == 200
+    body = response.json()
+    ids = {row["id"] for row in body}
+    assert ids == {str(mine.id)}
+
+
+def test_payment_history_empty_when_no_payments(client, as_user, db: DbSession) -> None:
+    user = make_user(db)
+    as_user(user)
+
+    response = client.get("/subscriptions/payments")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_payment_history_requires_auth(client) -> None:
+    response = client.get("/subscriptions/payments")
+    assert response.status_code == 401

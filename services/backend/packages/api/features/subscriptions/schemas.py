@@ -70,6 +70,28 @@ class SubscriptionOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PaymentOut(BaseModel):
+    """One of the caller's own payment rows, as returned by
+    `GET /subscriptions/payments` (task 0012, subtask B8).
+
+    Field names match the `Payment` ORM exactly, same convention as
+    `SubscriptionOut`. This is a self-service view -- unlike admin's
+    `PaymentAdminOut`, it is always scoped to the authenticated user's
+    own `user_id`, never any other user's payments.
+    """
+
+    model_config = {"from_attributes": True}
+
+    id: uuid.UUID
+    subscription_id: uuid.UUID | None
+    provider: str
+    provider_payment_id: str
+    amount_minor_units: int
+    currency: str
+    status: str
+    created_at: datetime
+
+
 class WebhookAckResponse(BaseModel):
     """Always 200 with this body once the signature checks out, per
     Razorpay's recommendation to ack quickly and avoid provider retries.

@@ -19,6 +19,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
+from packages.api.features.notifications import notification_service
 from packages.api.features.subscriptions import payment_provider
 from packages.api.features.subscriptions.models import Payment, Subscription
 
@@ -176,6 +177,19 @@ def get_my_subscription(db: DbSession, user_id: uuid.UUID) -> Subscription | Non
     )
 
 
+def list_payments_for_user(db: DbSession, user_id: uuid.UUID) -> list[Payment]:
+    """Return `user_id`'s own payment history, newest first, for
+    `GET /subscriptions/payments` (task 0012, subtask B8).
+
+    Always filtered by `Payment.user_id` -- a caller can only ever see
+    their own payments, never another user's.
+    """
+    stmt = (
+        select(Payment).where(Payment.user_id == user_id).order_by(Payment.created_at.desc())
+    )
+    return list(db.scalars(stmt).all())
+
+
 def build_sandbox_captured_payload(
     *, user_id: uuid.UUID, plan: str, session_id: str
 ) -> dict[str, Any]:
@@ -319,4 +333,14 @@ def process_razorpay_webhook(
     )
     db.add(payment)
     db.commit()
+
+    # Notification trigger (task 0012 integration step): covers both the
+    # real webhook and the sandbox-complete endpoint, since the latter
+    # reuses this same function for its success path. Defensive -- never
+    # let a notification-layer failure affect webhook processing/ack.
+    try:
+        notification_service.notify_subscription_activated(user_id, plan, db=db)
+    except Exception:  # pragma: no cover - defensive, see docstring above
+        pass
+
     return {"received": True}

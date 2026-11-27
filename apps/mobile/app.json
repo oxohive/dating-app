@@ -33,6 +33,13 @@
         {
           "locationWhenInUsePermission": "Allow the app to access your location so Premium GPS-based nearby discovery can filter matches by distance."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#FF4365"
+        }
       ]
     ]
   }

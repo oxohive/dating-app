@@ -3,9 +3,11 @@
 import { Badge } from "@/components/Badge";
 import { Table } from "@/components/Table";
 import { formatAmount, Payment } from "@/features/payments/api/payments.api";
+import { RefundAction } from "@/features/payments/components/RefundAction";
 
 export interface PaymentTableProps {
   payments: Payment[];
+  onRefund: (paymentId: string) => void;
 }
 
 const STATUS_TONE: Record<Payment["status"], "success" | "warning" | "danger" | "neutral"> = {
@@ -20,7 +22,7 @@ const STATUS_TONE: Record<Payment["status"], "success" | "warning" | "danger" | 
  * wave has no real Razorpay keys wired - it is visibility only, never a
  * payment-processing surface.
  */
-export function PaymentTable({ payments }: PaymentTableProps) {
+export function PaymentTable({ payments, onRefund }: PaymentTableProps) {
   return (
     <Table<Payment>
       rows={payments}
@@ -43,6 +45,11 @@ export function PaymentTable({ payments }: PaymentTableProps) {
           key: "createdAt",
           header: "Created at",
           render: (payment) => new Date(payment.createdAt).toLocaleString(),
+        },
+        {
+          key: "actions",
+          header: "Action",
+          render: (payment) => <RefundAction payment={payment} onRefund={onRefund} />,
         },
       ]}
     />

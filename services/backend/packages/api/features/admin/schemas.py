@@ -101,6 +101,23 @@ class PaymentAdminOut(BaseModel):
     created_at: datetime
 
 
+class AdminAuditLogOut(BaseModel):
+    """One audit-log row, as returned by `GET /admin/audit-log`.
+
+    Field names match the `AdminAuditLog` ORM exactly, same convention as
+    `SubscriptionAdminOut`/`PaymentAdminOut`.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    admin_user_id: uuid.UUID
+    action: str
+    target_type: str
+    target_id: str
+    created_at: datetime
+
+
 class ResolveReportRequest(BaseModel):
     """Body for `POST /admin/reports/{id}/resolve`.
 

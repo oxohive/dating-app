@@ -21,6 +21,8 @@ from packages.api.features.matches.match_service import (
     find_match_for_pair,
     get_or_create_match_for_pair,
 )
+from packages.api.features.notifications import notification_service
+from packages.api.features.profiles.models import Profile
 
 
 class LikeQuotaExceededError(Exception):
@@ -100,4 +102,46 @@ def create_like(db: Session, from_profile_id: uuid.UUID, to_profile_id: uuid.UUI
         match_id = match.id
 
     db.commit()
+
+    # Notification triggers (task 0012 integration step -- B7's
+    # notify_new_like/notify_new_match upgraded in place, not called by
+    # anything until now). A mutual like notifies both matched profiles
+    # about the match instead of also sending a separate "new like" to the
+    # recipient -- the match is the more relevant event once it happens.
+    # Both calls are internally defensive (never raise), but this fire-and
+    # -forget dispatch is wrapped anyway so a notification-layer regression
+    # can never affect the like/match response just returned to the caller.
+    try:
+        if matched:
+            notification_service.notify_new_match(from_profile_id, match_id, db=db)
+            notification_service.notify_new_match(to_profile_id, match_id, db=db)
+        else:
+            notification_service.notify_new_like(to_profile_id, db=db)
+    except Exception:  # pragma: no cover - defensive, see docstring above
+        pass
+
     return LikeResult(like.id, matched, match_id)
+
+
+def count_incoming_likes(db: Session, profile_id: uuid.UUID) -> int:
+    """Count every like received by `profile_id` ("see who liked you" --
+    task 0012, subtask B8). Used for the free-tier teaser response, which
+    gets this count and nothing else -- no liker identity.
+    """
+    stmt = select(Like.id).where(Like.to_profile_id == profile_id)
+    return len(db.execute(stmt).all())
+
+
+def list_incoming_likes(db: Session, profile_id: uuid.UUID) -> list[tuple[Like, Profile]]:
+    """List every like received by `profile_id`, newest first, each joined
+    to the liker's `Profile` ("see who liked you" full-detail branch --
+    Premium-gated at the route layer via `has_active_premium`, never
+    here).
+    """
+    stmt = (
+        select(Like, Profile)
+        .join(Profile, Profile.id == Like.from_profile_id)
+        .where(Like.to_profile_id == profile_id)
+        .order_by(Like.created_at.desc())
+    )
+    return [tuple(row) for row in db.execute(stmt).all()]
