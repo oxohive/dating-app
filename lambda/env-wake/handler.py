@@ -31,6 +31,15 @@ Behavior:
 - If the instance is `terminated`, returns an error page rather than
   retrying forever.
 
+JSON mode (task 0018): a caller that sends an `Accept: application/json`
+request header, or a `?format=json` query-string parameter, gets a JSON
+response instead of the HTML/redirect behavior above, for the exact same
+underlying state checks (same `?secret=` auth, same StartInstances-only-
+when-stopped logic). Intended for programmatic callers like the mobile
+app that can't follow an HTML meta-refresh redirect. See
+docs/runbooks/env-start-stop.md and
+tasks/0018-mobile-dynamic-wake-discovery/plan.md for the exact contract.
+
 Every invocation is logged as a single structured JSON line with a
 generated correlation ID, matching the convention in env-start/env-stop.
 """
@@ -421,6 +430,36 @@ def _extract_secret(event: dict) -> str | None:
     return query_params.get("secret")
 
 
+def _wants_json(event: dict) -> bool:
+    """True if the caller asked for the JSON response mode.
+
+    Triggered by either an `Accept: application/json` request header or a
+    `?format=json` query-string parameter (task 0018) — mobile/programmatic
+    callers are expected to send the header, but the query param is also
+    accepted (e.g. for a manual/browser test that wants to force JSON). The
+    default (neither present) keeps the original HTML/redirect behavior for
+    browsers, completely unchanged.
+    """
+    # Lambda Function URL (API Gateway HTTP API v2.0 payload format) header
+    # keys are already lowercased, but don't rely on that here.
+    headers = event.get("headers") or {}
+    for key, value in headers.items():
+        if key.lower() == "accept" and value and "application/json" in value.lower():
+            return True
+
+    query_params = event.get("queryStringParameters") or {}
+    return (query_params.get("format") or "").lower() == "json"
+
+
+def _json_response(status_code: int, payload: dict) -> dict:
+    return {
+        "statusCode": status_code,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps(payload),
+        "isBase64Encoded": False,
+    }
+
+
 def _expected_secret(ssm_client: Any) -> str:
     parameter_name = os.environ["SECRET_PARAMETER_NAME"]
     response = ssm_client.get_parameter(Name=parameter_name, WithDecryption=True)
@@ -446,6 +485,8 @@ def handler(event: dict | None, context: Any = None) -> dict:
         "instance_id": instance_id,
     }
 
+    wants_json = _wants_json(event)
+
     ssm_client = _ssm_client()
     expected_secret = _expected_secret(ssm_client)
     provided_secret = _extract_secret(event)
@@ -453,6 +494,8 @@ def handler(event: dict | None, context: Any = None) -> dict:
     if not provided_secret or not hmac.compare_digest(provided_secret, expected_secret):
         log_entry["result"] = "forbidden-bad-secret"
         logger.info(json.dumps(log_entry))
+        if wants_json:
+            return _json_response(403, {"state": "forbidden"})
         return _html_response(403, _FORBIDDEN_PAGE)
 
     ec2_client = _ec2_client()
@@ -465,25 +508,41 @@ def handler(event: dict | None, context: Any = None) -> dict:
         if public_ip:
             log_entry["result"] = "redirect-running"
             logger.info(json.dumps(log_entry))
+            if wants_json:
+                return _json_response(200, {"state": "running", "base_url": f"http://{public_ip}"})
             return _redirect_response(f"http://{public_ip}")
         # Running but no public IP assigned yet (rare, momentary) — fall
         # back to the waiting/retry page instead of redirecting nowhere.
         log_entry["result"] = "waiting-no-public-ip-yet"
         logger.info(json.dumps(log_entry))
+        if wants_json:
+            return _json_response(200, {"state": "starting", "retry_after_seconds": RETRY_SECONDS})
         return _html_response(200, _WAITING_PAGE.format(retry_seconds=RETRY_SECONDS, state=state))
 
     if state == STOPPED_STATE:
         ec2_client.start_instances(InstanceIds=[instance_id])
         log_entry["result"] = "start-requested"
         logger.info(json.dumps(log_entry))
+        if wants_json:
+            return _json_response(200, {"state": "starting", "retry_after_seconds": RETRY_SECONDS})
         return _html_response(200, _WAITING_PAGE.format(retry_seconds=RETRY_SECONDS, state=state))
 
     if state in TRANSITIONAL_STATES:
         log_entry["result"] = "waiting-transitional-state"
         logger.info(json.dumps(log_entry))
+        if wants_json:
+            return _json_response(200, {"state": "starting", "retry_after_seconds": RETRY_SECONDS})
         return _html_response(200, _WAITING_PAGE.format(retry_seconds=RETRY_SECONDS, state=state))
 
     # terminated, or any other unexpected state.
     log_entry["result"] = "error-unrecoverable-state"
     logger.info(json.dumps(log_entry))
+    if wants_json:
+        return _json_response(
+            500,
+            {
+                "state": "error",
+                "message": f"Instance is in state '{state}' and cannot be recovered automatically.",
+            },
+        )
     return _html_response(500, _ERROR_PAGE.format(state=state))

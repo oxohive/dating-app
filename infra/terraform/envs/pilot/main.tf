@@ -526,34 +526,22 @@ resource "aws_lambda_permission" "allow_public_invoke_function_env_wake" {
   principal     = "*"
 }
 
-# --- Task 0011 addition: static Elastic IP for the pilot instance ---
+# --- Task 0011 addition (REMOVED in task 0018) ---
 #
-# Additive only. Before this, aws_instance.app's public_ip was AWS's
-# standard ephemeral public IP: it's released back to AWS's pool on every
-# stop and a new (different) one is assigned on the next start, so the
-# pilot's public URL changed every stop/start cycle (including the idle
-# auto-stop from task 0005 and the fixed env-scheduler cron). An Elastic IP
-# is a static address allocated to this account and associated with the
-# instance; it stays the same across stop/start and is only released if
-# this aws_eip resource itself is destroyed. Associating it directly via
-# the `instance` attribute here (rather than a separate
-# aws_eip_association resource) re-associates the address on an
-# already-running instance in place -- it does not replace or restart
-# aws_instance.app.
-#
-# Cost note (see tasks/0011-static-public-ip/plan.md): an EIP is free while
-# associated with a *running* instance, but AWS charges a small idle fee
-# while it's associated with a *stopped* instance -- a small adder on top
-# of the existing pilot budget, accepted in exchange for a stable URL.
-resource "aws_eip" "pilot" {
-  domain   = "vpc"
-  instance = module.ec2_app.instance_id
-
-  tags = {
-    Name    = "dating-app-pilot-static-ip"
-    Purpose = "stable-public-url-across-stop-start"
-  }
-}
+# Task 0011 added a static Elastic IP (`aws_eip.pilot`) here to give the
+# pilot a stable public URL across stop/start cycles, at a small ongoing
+# idle-time AWS cost. Task 0018 removes it: the mobile app now does its
+# own dynamic wake-and-discover against the env-wake Lambda (which has
+# always looked up the instance's *current* public IP dynamically, EIP or
+# not — see lambda/env-wake/handler.py), so nothing actually depends on
+# the IP being static anymore. The instance's public IP (`aws_instance.app.
+# public_ip`, exposed as `module.ec2_app.public_ip`) is once again AWS's
+# standard ephemeral address: it changes on every stop/start, same as
+# before task 0011. See docs/runbooks/env-start-stop.md for the resulting
+# "the wake Lambda URL is the only thing that doesn't change" guidance,
+# and tasks/0018-mobile-dynamic-wake-discovery/plan.md for the full
+# rationale and rollback path (re-add this resource to restore a static
+# IP).
 
 # --- Task 0013 additions: deploy admin-web + marketing-site ---
 #

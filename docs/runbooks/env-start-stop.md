@@ -56,7 +56,7 @@ query parameter:
   every visit; share the full `...?secret=...` URL with whoever needs it
   instead of making them fetch the secret themselves each time.
 
-**What happens when you hit it:**
+**What happens when you hit it (browser/HTML mode, the default):**
 - If the instance is stopped, it calls `ec2:StartInstances` (idempotent)
   and shows a "Starting the app..." page that auto-refreshes every 5
   seconds until the instance comes up.
@@ -64,37 +64,82 @@ query parameter:
   instance's **current public IP** over plain HTTP.
 - Wrong or missing secret → `403 Forbidden`.
 
-**Static public IP (task 0011):** the pilot instance has a static AWS
-Elastic IP associated with it: **`15.206.247.148`**. This address is
-allocated to the account (`aws_eip.pilot` in
-`infra/terraform/envs/pilot/main.tf`) and no longer changes across
-stop/start cycles — previously (before task 0011) the instance used AWS's
-standard ephemeral public IP, which was released and reassigned to a new,
-different address on every stop/start, so the pilot's public URL used to
-change constantly. That is no longer the case: `http://15.206.247.148/` is
-now a stable URL for the pilot, and `lambda/env-wake/handler.py`'s "already
-running" redirect target (described above) now resolves to this same
-constant address every time, since it looks up the instance's current
-public IP dynamically — which is simply this Elastic IP now. Confirmed by
-terraform output `static_public_ip` and a live stop/start cycle during
-task 0011 (the address was unchanged before and after).
+**JSON mode (task 0018):** send `Accept: application/json` (what the
+mobile app does) or append `?format=json` to the same URL, and the Lambda
+returns a JSON body instead of the HTML/redirect above, for the exact same
+underlying checks and the same `?secret=` auth:
+
+| Situation | Response |
+|---|---|
+| Running, public IP available | `200 {"state": "running", "base_url": "http://<ip>"}` |
+| Running but no public IP yet / stopped (start requested) / transitional (`pending`/`stopping`/`shutting-down`) | `200 {"state": "starting", "retry_after_seconds": 5}` |
+| Terminated / unrecoverable | `500 {"state": "error", "message": "..."}` |
+| Missing/incorrect secret | `403 {"state": "forbidden"}` |
+
+See `lambda/env-wake/handler.py` and
+`tasks/0018-mobile-dynamic-wake-discovery/plan.md` for the authoritative
+contract. The mobile app polls this on startup (and after a mid-session
+connection failure) and retries every `retry_after_seconds` until
+`"running"`.
+
+**No more static public IP (task 0011 removed in task 0018):** task 0011
+added a static AWS Elastic IP (`aws_eip.pilot`) so the pilot had one
+address that never changed across stop/start. Task 0018 removed it: the
+mobile app now does its own dynamic wake-and-discover via the JSON mode
+above instead of relying on a fixed address, so the small ongoing
+idle-time EIP cost is no longer worth paying.
+
+**Practical consequence: the instance's own public IP can change on every
+stop/start again**, exactly like before task 0011 — AWS assigns a fresh
+ephemeral address each time the instance (re)starts, and releases it on
+stop. There is **no stable bare-IP URL for the pilot instance anymore**.
+Concretely:
+
+- **The env-wake Lambda Function URL is now the only address that stays
+  constant.** `terraform output -raw env_wake_function_url` never changes
+  across stop/start cycles — bookmark/use *that* (with `?secret=...`), not
+  a raw IP.
+- **Any bare-IP bookmark you've saved (`http://<old-ip>/`,
+  `http://<old-ip>:8081/`, etc.) will go stale** the next time the
+  instance stops and starts, whether that's a scheduled stop, the idle
+  auto-stop alarm, or a manual override below. Re-resolve the current
+  address via the wake Lambda (browser mode redirects you to it; JSON mode
+  returns it as `base_url`) rather than reusing an old bookmark.
+- `terraform output instance_public_ip` / `marketing_site_url` /
+  `admin_web_url` from `infra/terraform/envs/pilot` still work, but only
+  reflect whatever the instance's IP happens to be *at the moment you run
+  that command* — re-run them after any stop/start rather than trusting a
+  previously-noted value.
+- The mobile app no longer needs any of this — it discovers the current
+  address itself via the Lambda's JSON mode on every app launch/foreground
+  and after any mid-session connection failure (see
+  `tasks/0018-mobile-dynamic-wake-discovery/plan.md`).
 
 **App URLs (task 0013):** alongside the backend API, the pilot instance
-now also serves two browser-viewable apps, both proxied through the same
+also serves two browser-viewable apps, both proxied through the same
 nginx container as the backend (see `infra/docker-compose/nginx.conf`):
 
-- **Marketing site:** `http://15.206.247.148/` — public, no login required.
-- **Admin web:** `http://15.206.247.148:8081/` — a distinct port rather
-  than a `/admin/` path prefix, to avoid Next.js basePath/asset-path
-  issues. Reachable from the public internet, but gated by its own
-  application-level login (`apps/admin-web/src/features/auth`) and, more
-  importantly, by the backend's `is_admin` check enforced server-side on
-  every `/admin/*` API call regardless of what the client sends.
-- The existing backend API is unaffected — still `http://15.206.247.148/`
-  under its existing path prefixes (`/health`, `/auth`, `/admin`, etc.).
+- **Marketing site:** root path, no login required.
+- **Admin web:** port `8081` — a distinct port rather than a `/admin/`
+  path prefix, to avoid Next.js basePath/asset-path issues. Reachable from
+  the public internet, but gated by its own application-level login
+  (`apps/admin-web/src/features/auth`) and, more importantly, by the
+  backend's `is_admin` check enforced server-side on every `/admin/*` API
+  call regardless of what the client sends.
+- The existing backend API is unaffected — same path prefixes
+  (`/health`, `/auth`, `/admin`, etc.) on the same host.
 
 Both are produced by `terraform output marketing_site_url` /
-`terraform output admin_web_url` from `infra/terraform/envs/pilot`.
+`terraform output admin_web_url` from `infra/terraform/envs/pilot` — as of
+task 0018, these reflect the instance's **current** (no-longer-static) IP
+at the moment you run them, not a fixed address; re-run them after any
+stop/start rather than reusing a previously-noted value. (The
+`admin-web`-side `ADMIN_WEB_PUBLIC_API_BASE_URL` baked in at deploy time
+by `.github/workflows/deploy.yml` still hardcodes the old static IP as of
+this writing — that value will go stale the next time the instance
+stops/starts and is **not** fixed by this task; see task 0018's status/
+report for details, it's a follow-up for whoever owns admin-web's deploy
+config.)
 
 **Rotating the secret:** the secret is a Terraform-managed `random_password`
 stored in the SSM parameter above.
