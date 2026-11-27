@@ -39,6 +39,71 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Thrown when `fetch` itself fails to connect (DNS, timeout, connection
+ * refused, offline) rather than the server responding with a non-2xx
+ * status — distinct from {@link ApiError}, which represents a reachable
+ * server's error response. Surfaced to callers only when the server-wake
+ * recovery flow (task 0018) couldn't bring the backend back up.
+ */
+export class NetworkError extends Error {
+  constructor(message = 'Could not reach the server. Check your connection and try again.') {
+    super(message);
+    this.name = 'NetworkError';
+  }
+}
+
+/**
+ * True for a connection-level failure as thrown by `fetch` itself (both
+ * the web and React Native `fetch` implementations reject with a
+ * `TypeError` for this case), as opposed to a reachable server's non-2xx
+ * HTTP response, which resolves normally and is handled as an
+ * {@link ApiError} instead.
+ */
+export function isNetworkError(error: unknown): boolean {
+  return error instanceof TypeError;
+}
+
+export type DynamicBaseUrlGetter = () => string | null;
+
+let dynamicBaseUrlGetter: DynamicBaseUrlGetter | null = null;
+
+/**
+ * Registers how to read the dynamically-discovered API base URL (task
+ * 0018's server-wake flow), which takes priority over the static
+ * `config.apiBaseUrl` once known. Registration function rather than a
+ * direct import of the server-wake feature's store, same reasoning as
+ * {@link configureAuthSession}: this core module stays feature-agnostic.
+ */
+export function configureDynamicBaseUrl(getter: DynamicBaseUrlGetter | null): void {
+  dynamicBaseUrlGetter = getter;
+}
+
+function resolveApiBaseUrl(): string {
+  return dynamicBaseUrlGetter?.() ?? config.apiBaseUrl;
+}
+
+export type ServerWakeRecoveryHandlers = {
+  /**
+   * Re-runs the server-wake check (the pilot instance may have gone
+   * idle-stopped again since launch) and resolves once a terminal state
+   * is reached: `true` if the backend is reachable again (`running`),
+   * `false` on a terminal failure (`error`/`forbidden`).
+   */
+  recoverFromNetworkError: () => Promise<boolean>;
+};
+
+let serverWakeRecoveryHandlers: ServerWakeRecoveryHandlers | null = null;
+
+/**
+ * Registers the server-wake recovery hook used when a request fails with
+ * a network/connection-level error. Registration function, same pattern
+ * as {@link configureAuthSession} and {@link configureDynamicBaseUrl}.
+ */
+export function configureServerWakeRecovery(handlers: ServerWakeRecoveryHandlers | null): void {
+  serverWakeRecoveryHandlers = handlers;
+}
+
 export type AuthSessionHandlers = {
   /** Current access token, if any. */
   getAccessToken: () => string | null;
@@ -77,31 +142,53 @@ async function parseJsonBody(response: Response): Promise<unknown> {
   }
 }
 
+type RetryState = {
+  /** Already retried once after a 401-triggered token refresh. */
+  isAuthRetry: boolean;
+  /** Already retried once after a network-error-triggered wake recovery. */
+  isWakeRetry: boolean;
+};
+
 async function performRequest<TResponse>(
   path: string,
   options: ApiRequestOptions,
-  isRetry: boolean,
+  retryState: RetryState,
 ): Promise<TResponse> {
   const correlationId = generateCorrelationId();
   const { body, headers, skipAuth, ...rest } = options;
 
   const accessToken = skipAuth ? null : authSessionHandlers?.getAccessToken() ?? null;
 
-  const response = await fetch(`${config.apiBaseUrl}${path}`, {
-    ...rest,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Correlation-ID': correlationId,
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      ...headers,
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${resolveApiBaseUrl()}${path}`, {
+      ...rest,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Correlation-ID': correlationId,
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...headers,
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (error) {
+    // A connection-level failure (not a reachable server's error
+    // response) — the pilot instance may have gone idle-stopped again
+    // since launch. Re-run the server-wake check once and retry this
+    // same request before giving up (task 0018).
+    if (isNetworkError(error) && !retryState.isWakeRetry && serverWakeRecoveryHandlers) {
+      const recovered = await serverWakeRecoveryHandlers.recoverFromNetworkError();
+      if (recovered) {
+        return performRequest<TResponse>(path, options, { ...retryState, isWakeRetry: true });
+      }
+    }
+    throw new NetworkError();
+  }
 
-  if (response.status === 401 && !skipAuth && !isRetry && authSessionHandlers) {
+  if (response.status === 401 && !skipAuth && !retryState.isAuthRetry && authSessionHandlers) {
     const refreshedAccessToken = await authSessionHandlers.refreshAccessToken();
     if (refreshedAccessToken) {
-      return performRequest<TResponse>(path, options, true);
+      return performRequest<TResponse>(path, options, { ...retryState, isAuthRetry: true });
     }
     authSessionHandlers.onSessionExpired();
   }
@@ -119,7 +206,7 @@ async function performRequest<TResponse>(
 }
 
 async function request<TResponse>(path: string, options: ApiRequestOptions = {}): Promise<TResponse> {
-  return performRequest<TResponse>(path, options, false);
+  return performRequest<TResponse>(path, options, { isAuthRetry: false, isWakeRetry: false });
 }
 
 export const apiClient = {
